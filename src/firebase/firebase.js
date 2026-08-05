@@ -1,4 +1,5 @@
-import { initializeApp } from "firebase/app";
+// Third Party Libraries
+import { initializeApp, getApps, getApp } from 'firebase/app';
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -9,6 +10,7 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (Singleton pattern to prevent duplicate initialization during HMR)
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export default app;

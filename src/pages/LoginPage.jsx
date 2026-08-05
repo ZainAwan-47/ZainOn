@@ -1,11 +1,14 @@
 // React
-import React from 'react';
+import React, { useState } from 'react';
 
 // Third Party Libraries
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+
+// Services
+import { authService } from '../services/authService';
 
 // Components
 import AuthInput from '../components/ui/AuthInput';
@@ -26,6 +29,15 @@ const loginSchema = z.object({
 });
 
 export const LoginPage = () => {
+    const navigate = useNavigate();
+    const [isLoading, setIsLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isResending, setIsResending] = useState(false);
+    const [authError, setAuthError] = useState('');
+    const [resendSuccess, setResendSuccess] = useState('');
+    const [isUnverified, setIsUnverified] = useState(false);
+    const [lastCredentials, setLastCredentials] = useState({ email: '', password: '' });
+
     const {
         register,
         handleSubmit,
@@ -40,9 +52,64 @@ export const LoginPage = () => {
         },
     });
 
-    const onSubmit = () => {
-        // UI Validation Passed - Backend auth execution deferred to Firebase Sprint
+    const onSubmit = async (data) => {
+        setAuthError('');
+        setResendSuccess('');
+        setIsUnverified(false);
+        setIsLoading(true);
+
+        try {
+            await authService.login(data.email, data.password);
+            navigate('/');
+        } catch (error) {
+            if (error.message === 'Please verify your email before signing in.') {
+                setIsUnverified(true);
+                setLastCredentials({ email: data.email, password: data.password });
+                setAuthError(error.message);
+            } else {
+                setAuthError(error.message);
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
+
+    const handleGoogleSignIn = async () => {
+        setAuthError('');
+        setResendSuccess('');
+        setIsUnverified(false);
+        setIsGoogleLoading(true);
+
+        try {
+            await authService.googleLogin();
+            navigate('/');
+        } catch (error) {
+            setAuthError(error.message);
+        } finally {
+            setIsGoogleLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!lastCredentials.email || !lastCredentials.password) return;
+
+        setResendSuccess('');
+        setIsResending(true);
+
+        try {
+            await authService.resendVerificationEmail(
+                lastCredentials.email,
+                lastCredentials.password
+            );
+            setResendSuccess('Verification email sent.');
+        } catch (error) {
+            setAuthError(error.message);
+        } finally {
+            setIsResending(false);
+        }
+    };
+
+    const isAnyLoading = isLoading || isGoogleLoading;
 
     return (
         <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none p-6 sm:p-8 transition-colors">
@@ -83,6 +150,7 @@ export const LoginPage = () => {
                     placeholder="name@example.com"
                     autoComplete="email"
                     required
+                    disabled={isAnyLoading}
                     error={errors.email?.message}
                     {...register('email')}
                 />
@@ -94,6 +162,7 @@ export const LoginPage = () => {
                         placeholder="••••••••"
                         autoComplete="current-password"
                         required
+                        disabled={isAnyLoading}
                         error={errors.password?.message}
                         {...register('password')}
                     />
@@ -102,6 +171,7 @@ export const LoginPage = () => {
                             <input
                                 id="rememberMe"
                                 type="checkbox"
+                                disabled={isAnyLoading}
                                 className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-400 dark:bg-slate-800 transition-colors cursor-pointer"
                                 {...register('rememberMe')}
                             />
@@ -122,11 +192,71 @@ export const LoginPage = () => {
                 </div>
 
                 <div className="pt-2">
-                    <PrimaryButton type="submit" disabled={!isValid}>
-                        Sign In
+                    <PrimaryButton type="submit" disabled={!isValid || isAnyLoading}>
+                        {isLoading ? 'Signing In...' : 'Sign In'}
                     </PrimaryButton>
                 </div>
             </form>
+
+            {/* Error Message Banner */}
+            {authError && (
+                <div
+                    role="alert"
+                    className="mt-4 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs space-y-2"
+                >
+                    <div className="flex items-center space-x-2">
+                        <svg
+                            className="w-4 h-4 flex-shrink-0 text-rose-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                        </svg>
+                        <span>{authError}</span>
+                    </div>
+                    {isUnverified && (
+                        <div className="pt-1 pl-6">
+                            <button
+                                type="button"
+                                onClick={handleResendVerification}
+                                disabled={isResending}
+                                className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline focus:outline-none disabled:opacity-50"
+                            >
+                                {isResending ? 'Sending...' : 'Resend Verification Email'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Resend Success Banner */}
+            {resendSuccess && (
+                <div
+                    role="status"
+                    className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2"
+                >
+                    <svg
+                        className="w-4 h-4 flex-shrink-0 text-emerald-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M5 13l4 4L19 7"
+                        />
+                    </svg>
+                    <span>{resendSuccess}</span>
+                </div>
+            )}
 
             {/* Divider */}
             <div className="relative my-6 flex items-center justify-center">
@@ -136,10 +266,12 @@ export const LoginPage = () => {
                 </span>
             </div>
 
-            {/* Social Button (UI Only) */}
+            {/* Google Sign In Button */}
             <button
                 type="button"
-                className="w-full py-3 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
+                onClick={handleGoogleSignIn}
+                disabled={isAnyLoading}
+                className="w-full py-3 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
@@ -159,7 +291,7 @@ export const LoginPage = () => {
                         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                 </svg>
-                <span>Continue with Google</span>
+                <span>{isGoogleLoading ? 'Signing In...' : 'Continue with Google'}</span>
             </button>
 
             {/* Footer Link */}
