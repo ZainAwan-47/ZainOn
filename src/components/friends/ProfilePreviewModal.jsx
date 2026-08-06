@@ -27,7 +27,6 @@ export const ProfilePreviewModal = memo(({
     const [friendshipStatus, setFriendshipStatus] = useState('NOT_FRIENDS');
     const [loadingAction, setLoadingAction] = useState(false);
 
-    // Subscribe to real-time friendship status doc
     useEffect(() => {
         if (!user?.uid || !targetUser?.uid) return () => { };
 
@@ -81,18 +80,23 @@ export const ProfilePreviewModal = memo(({
 
     return (
         <AnimatePresence>
+            {/* 
+        Workspace Bounded Overlay:
+        Utilizes absolute transform centering (`left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`).
+        Guarantees the card stays centered inside the workspace and never bleeds into the sidebar.
+      */}
             <div
-                className="absolute inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-hidden min-w-0"
+                className="absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md overflow-hidden min-w-0"
                 onClick={handleCloseModal}
             >
                 <motion.div
                     ref={modalRef}
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                    initial={{ opacity: 0, scale: 0.95, y: '-45%', x: '-50%' }}
+                    animate={{ opacity: 1, scale: 1, y: '-50%', x: '-50%' }}
+                    exit={{ opacity: 0, scale: 0.95, y: '-45%', x: '-50%' }}
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full max-w-[380px] min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col space-y-3.5 sm:space-y-4 relative max-h-[calc(100%-1.5rem)] overflow-y-auto select-none my-auto"
+                    className="absolute left-1/2 top-1/2 w-[calc(100%-1.5rem)] max-w-[350px] min-w-0 bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col space-y-3 sm:space-y-4 max-h-[calc(100%-1.5rem)] overflow-y-auto select-none shrink-0"
                 >
                     {/* Close Button */}
                     <button
@@ -106,7 +110,7 @@ export const ProfilePreviewModal = memo(({
                         </svg>
                     </button>
 
-                    {/* Profile Header */}
+                    {/* User Profile Header */}
                     <div className="flex flex-col items-center text-center space-y-2 pt-1 min-w-0">
                         <Avatar
                             src={targetUser.photoURL}
@@ -131,7 +135,7 @@ export const ProfilePreviewModal = memo(({
                         />
                     </div>
 
-                    {/* User Bio Box */}
+                    {/* User Bio Details Box */}
                     <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3 sm:p-3.5 flex flex-col space-y-1 text-xs min-w-0">
                         <span className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                             About User
@@ -141,9 +145,9 @@ export const ProfilePreviewModal = memo(({
                         </p>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons (Adaptive column/row layout) */}
                     <div className="flex flex-col gap-2 pt-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                             {onStartChat && (
                                 <button
                                     type="button"
@@ -174,12 +178,12 @@ export const ProfilePreviewModal = memo(({
                                 type="button"
                                 disabled={loadingAction}
                                 onClick={handleRemoveFriend}
-                                className="w-full py-2 sm:py-2.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl font-semibold text-xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                                className="w-full py-2 sm:py-2.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl font-semibold text-xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 min-w-0"
                             >
                                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6h12a6 6 0 00-6-6zM21 12h-6" />
                                 </svg>
-                                <span>{loadingAction ? 'Removing...' : 'Remove Friend'}</span>
+                                <span className="truncate">{loadingAction ? 'Removing...' : 'Remove Friend'}</span>
                             </button>
                         )}
                     </div>

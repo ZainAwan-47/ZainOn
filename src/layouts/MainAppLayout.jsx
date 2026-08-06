@@ -1,9 +1,7 @@
 // React
 import React, { useState, useContext } from 'react';
-
 // Third Party Libraries
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-
 // Context & Hooks
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
@@ -11,7 +9,6 @@ import { useUserSearch } from '../hooks/useUserSearch';
 import { useFriends } from '../hooks/useFriends';
 import { useConversations } from '../hooks/useConversations';
 import { usePresence } from '../hooks/usePresence';
-
 // Components
 import Avatar from '../components/ui/Avatar';
 import IconButton from '../components/ui/IconButton';
@@ -36,29 +33,29 @@ export const MainAppLayout = () => {
 
     // Hooks
     const {
-        searchQuery,
+        searchQuery = '',
         setSearchQuery,
-        results: searchResults,
+        results: searchResults = [],
         isSearching,
         error: searchError,
         clearSearch,
-    } = useUserSearch();
+    } = useUserSearch() || {};
 
     const {
-        friends,
-        incomingRequests,
+        friends = [],
+        incomingRequests = [],
         loading: friendsLoading,
         acceptRequest,
         declineRequest,
-    } = useFriends();
+    } = useFriends() || {};
 
     const {
-        conversations,
+        conversations = [],
         activeConversationId,
         setActiveConversationId,
         loading: conversationsLoading,
         startConversation,
-    } = useConversations();
+    } = useConversations() || {};
 
     const handleLogout = async () => {
         try {
@@ -68,6 +65,9 @@ export const MainAppLayout = () => {
             console.error('[MainAppLayout] Logout failed:', error);
         }
     };
+
+    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
 
     const handleStartChatFromProfile = async (targetUser) => {
         setSelectedPreviewUser(null);
@@ -80,22 +80,15 @@ export const MainAppLayout = () => {
         }
     };
 
-    const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
-    const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const handleViewProfile = (targetUser) => {
+        setSelectedPreviewUser(targetUser);
+        closeMobileMenu(); // Automatically close mobile drawer when friend profile is tapped
+    };
 
     const isSearchActive = Boolean(searchQuery.trim());
 
     return (
         <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans flex select-none">
-            {/* Profile Preview Modal Host */}
-            {selectedPreviewUser && (
-                <ProfilePreviewModal
-                    targetUser={selectedPreviewUser}
-                    onClose={() => setSelectedPreviewUser(null)}
-                    onStartChat={handleStartChatFromProfile}
-                />
-            )}
-
             {/* Mobile Drawer Overlay */}
             {isMobileMenuOpen && (
                 <div
@@ -115,7 +108,7 @@ export const MainAppLayout = () => {
                     <div className="flex items-center space-x-3.5">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
                             <svg className="w-5.5 h-5.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
                         </div>
                         <div className="flex flex-col">
@@ -123,7 +116,6 @@ export const MainAppLayout = () => {
                             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Realtime Workspace</span>
                         </div>
                     </div>
-
                     <div className="md:hidden">
                         <IconButton onClick={closeMobileMenu} title="Close menu" size="sm">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,8 +159,8 @@ export const MainAppLayout = () => {
                             type="button"
                             onClick={() => setActiveTab('chats')}
                             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'chats'
-                                    ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                                 }`}
                         >
                             Chats
@@ -177,8 +169,8 @@ export const MainAppLayout = () => {
                             type="button"
                             onClick={() => setActiveTab('friends')}
                             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'friends'
-                                    ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                                 }`}
                         >
                             Friends
@@ -187,12 +179,12 @@ export const MainAppLayout = () => {
                             type="button"
                             onClick={() => setActiveTab('requests')}
                             className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all relative ${activeTab === 'requests'
-                                    ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                                 }`}
                         >
                             Requests
-                            {incomingRequests.length > 0 && (
+                            {(incomingRequests?.length || 0) > 0 && (
                                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 text-[9px] text-white font-extrabold flex items-center justify-center shadow-md animate-pulse">
                                     {incomingRequests.length}
                                 </span>
@@ -209,13 +201,13 @@ export const MainAppLayout = () => {
                             isSearching={isSearching}
                             error={searchError}
                             searchQuery={searchQuery}
-                            onViewProfile={(targetUser) => setSelectedPreviewUser(targetUser)}
+                            onViewProfile={handleViewProfile}
                         />
                     ) : activeTab === 'friends' ? (
                         <FriendsList
                             friends={friends}
                             loading={friendsLoading}
-                            onViewProfile={(targetUser) => setSelectedPreviewUser(targetUser)}
+                            onViewProfile={handleViewProfile}
                         />
                     ) : activeTab === 'requests' ? (
                         <FriendRequestsTab
@@ -242,7 +234,7 @@ export const MainAppLayout = () => {
                 </div>
 
                 {/* Quick Action Bar */}
-                <div className="px-3.5 py-2 border-t border-slate-800/80 flex items-center space-x-1 bg-slate-900/60 shrink-0">
+                <div className="px-3.5 py-2 flex items-center space-x-1 bg-slate-900/60 border-t border-slate-800/80 shrink-0">
                     <NavLink
                         to="/chat"
                         onClick={closeMobileMenu}
@@ -286,14 +278,13 @@ export const MainAppLayout = () => {
                         />
                         <div className="flex flex-col min-w-0">
                             <span className="text-xs font-bold text-white truncate">
-                                {user?.fullName || user?.displayName || 'ZainOn User'}
+                                {user?.fullName || user?.displayName || 'Zainon User'}
                             </span>
                             <span className="text-[10px] font-medium text-slate-400 truncate">
                                 @{user?.username || 'user'}
                             </span>
                         </div>
                     </div>
-
                     <div className="flex items-center space-x-1 shrink-0">
                         {themeContext && (
                             <IconButton
@@ -306,7 +297,6 @@ export const MainAppLayout = () => {
                                 </svg>
                             </IconButton>
                         )}
-
                         <IconButton onClick={handleLogout} title="Sign Out" variant="danger" size="sm">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -317,7 +307,7 @@ export const MainAppLayout = () => {
             </aside>
 
             {/* Main Workspace Canvas */}
-            <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-950 transition-colors h-full">
+            <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-950 transition-colors h-full relative">
                 <header className="md:hidden h-14 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-900 shrink-0">
                     <div className="flex items-center space-x-3">
                         <IconButton onClick={toggleMobileMenu} title="Open sidebar">
@@ -327,7 +317,6 @@ export const MainAppLayout = () => {
                         </IconButton>
                         <span className="text-base font-bold text-white">ZainOn</span>
                     </div>
-
                     <Avatar
                         src={user?.photoURL}
                         name={user?.fullName || user?.displayName || 'User'}
@@ -337,6 +326,15 @@ export const MainAppLayout = () => {
                 </header>
 
                 <main className="flex-1 flex flex-col min-h-0 relative h-full">
+                    {/* Hosted strictly inside the main workspace canvas to prevent sidebar overlaps */}
+                    {selectedPreviewUser && (
+                        <ProfilePreviewModal
+                            targetUser={selectedPreviewUser}
+                            onClose={() => setSelectedPreviewUser(null)}
+                            onStartChat={handleStartChatFromProfile}
+                        />
+                    )}
+
                     <Outlet
                         context={{
                             conversations,
@@ -344,6 +342,7 @@ export const MainAppLayout = () => {
                             setActiveConversationId,
                             conversationsLoading,
                             startConversation,
+                            setSelectedPreviewUser: handleViewProfile,
                         }}
                     />
                 </main>

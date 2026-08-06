@@ -40,23 +40,19 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     const scrollToBottom = useCallback((instant = false) => {
         if (!chatContainerRef.current) return;
-        const { scrollHeight, clientHeight } = chatContainerRef.current;
-        const targetScrollTop = Math.max(0, scrollHeight - clientHeight);
+        const container = chatContainerRef.current;
 
-        if (instant) {
-            chatContainerRef.current.style.scrollBehavior = 'auto';
-            chatContainerRef.current.scrollTop = targetScrollTop;
-        } else {
-            chatContainerRef.current.style.scrollBehavior = 'smooth';
-            chatContainerRef.current.scrollTop = targetScrollTop;
-        }
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior: instant ? 'auto' : 'smooth',
+        });
     }, []);
 
-    // Realtime Delivery & Seen Acknowledgement System
+    // REALTIME ACKNOWLEDGEMENTS (Isolates presence changes from wiping unread badges)
     useEffect(() => {
         if (!conversation?.id || !user?.uid || messages.length === 0) return;
 
-        // Delivery Ack (Gray -> Orange)
+        // 1. Delivery Ack (Gray -> Orange)
         const unackedDelivered = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -69,7 +65,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered);
         }
 
-        // Seen Ack (Orange -> Green)
+        // 2. Seen Ack (Orange -> Green)
+        // Executes ONLY when this ChatRoom component is actively mounted/viewed by current user
         const unackedSeen = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -81,22 +78,22 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             unackedSeen.forEach((m) => ackedSeenIdsRef.current.add(m.id));
             messageService.markAsSeen(conversation.id, user.uid, unackedSeen);
         }
-    }, [conversation?.id, user?.uid, messages]);
+    }, [conversation?.id, user?.uid, messages]); // presence (isOnline) intentionally excluded!
 
     // Initial mount scroll
     useLayoutEffect(() => {
         if (!loading && messages.length > 0) {
             scrollToBottom(true);
         }
-    }, [loading, conversation?.id, scrollToBottom, messages.length]);
+    }, [loading, conversation?.id, scrollToBottom]);
 
-    // Auto-scroll for incoming messages
-    useEffect(() => {
+    // Synchronized smooth scroll on new message entry
+    useLayoutEffect(() => {
         if (messages.length > prevMessagesLengthRef.current) {
             const lastMsg = messages[messages.length - 1];
-            const isIncoming = lastMsg?.senderId !== user?.uid;
+            const isOwnMsg = lastMsg?.senderId === user?.uid;
 
-            if (isIncoming && isNearBottomRef.current) {
+            if (isOwnMsg || isNearBottomRef.current) {
                 requestAnimationFrame(() => {
                     scrollToBottom(false);
                 });
@@ -105,17 +102,12 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         prevMessagesLengthRef.current = messages.length;
     }, [messages, user?.uid, scrollToBottom]);
 
-    // Optimistic Send & Immediate Frame Scroll
     const handleSendWithReply = useCallback(
         (text, replyToMsg) => {
             sendMessage(text, replyToMsg);
             setReplyingTo(null);
-
-            requestAnimationFrame(() => {
-                scrollToBottom(false);
-            });
         },
-        [sendMessage, scrollToBottom]
+        [sendMessage]
     );
 
     const handleCancelReply = useCallback(() => {

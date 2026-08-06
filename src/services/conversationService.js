@@ -75,6 +75,10 @@ export const conversationService = {
         }
     },
 
+    /**
+     * Realtime conversation subscriber.
+     * Preserves raw unreadCounts across presence/profile snapshot emissions.
+     */
     subscribeToUserConversations: (currentUid, callback) => {
         if (!currentUid) return () => { };
 
@@ -85,6 +89,7 @@ export const conversationService = {
 
         const activeProfileListeners = new Map();
         const cachedUserProfiles = new Map();
+        const rawConversationsMap = new Map();
 
         const unsubQuery = onSnapshot(
             q,
@@ -93,16 +98,20 @@ export const conversationService = {
                     activeProfileListeners.forEach((unsub) => unsub());
                     activeProfileListeners.clear();
                     cachedUserProfiles.clear();
+                    rawConversationsMap.clear();
                     callback([]);
                     return;
                 }
 
-                const rawConversations = snapshot.docs.map((docSnap) => docSnap.data());
-                const hydratedConversationsMap = new Map();
+                // 1. Store raw snapshot documents
+                rawConversationsMap.clear();
+                snapshot.docs.forEach((docSnap) => {
+                    rawConversationsMap.set(docSnap.id, docSnap.data());
+                });
 
-                const buildHydratedConversation = (conv) => {
-                    const otherUid = conv.participantIds?.find((id) => id !== currentUid);
-                    const staticOtherProfile = conv.participants?.[otherUid] || null;
+                const buildHydratedConversation = (rawConv) => {
+                    const otherUid = rawConv.participantIds?.find((id) => id !== currentUid);
+                    const staticOtherProfile = rawConv.participants?.[otherUid] || null;
                     const liveProfile = cachedUserProfiles.get(otherUid);
 
                     const otherParticipant = staticOtherProfile
@@ -117,30 +126,27 @@ export const conversationService = {
                         : null;
 
                     return {
-                        ...conv,
+                        ...rawConv,
                         otherParticipant,
-                        unreadCount: conv.unreadCounts?.[currentUid] || 0,
+                        unreadCount: rawConv.unreadCounts?.[currentUid] || 0,
                     };
                 };
 
                 const sortAndDeliver = () => {
-                    const sortedList = Array.from(hydratedConversationsMap.values()).sort(
-                        (a, b) => {
-                            const timeA = a.lastActivity?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-                            const timeB = b.lastActivity?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
-                            return timeB - timeA;
-                        }
-                    );
+                    const hydratedList = Array.from(rawConversationsMap.values()).map(buildHydratedConversation);
+                    const sortedList = hydratedList.sort((a, b) => {
+                        const timeA = a.lastActivity?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+                        const timeB = b.lastActivity?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+                        return timeB - timeA;
+                    });
                     callback(sortedList);
                 };
 
-                rawConversations.forEach((conv) => {
-                    hydratedConversationsMap.set(conv.id, buildHydratedConversation(conv));
-                });
-
                 sortAndDeliver();
 
-                rawConversations.forEach((conv) => {
+                // 2. Attach live user presence listeners
+                snapshot.docs.forEach((docSnap) => {
+                    const conv = docSnap.data();
                     const otherUid = conv.participantIds?.find((id) => id !== currentUid);
                     if (otherUid && !activeProfileListeners.has(otherUid)) {
                         const otherUserRef = doc(db, 'users', otherUid);
@@ -149,23 +155,16 @@ export const conversationService = {
                             (userSnap) => {
                                 if (userSnap.exists()) {
                                     const liveUserData = userSnap.data();
-                                    const updatedProfile = {
+                                    cachedUserProfiles.set(otherUid, {
                                         uid: liveUserData.uid,
                                         fullName: liveUserData.fullName || 'User',
                                         username: liveUserData.username || 'user',
                                         photoURL: liveUserData.photoURL || '',
                                         isOnline: Boolean(liveUserData.isOnline),
                                         lastSeen: liveUserData.lastSeen || null,
-                                    };
-
-                                    cachedUserProfiles.set(otherUid, updatedProfile);
-
-                                    hydratedConversationsMap.forEach((storedConv, cId) => {
-                                        if (storedConv.participantIds?.includes(otherUid)) {
-                                            hydratedConversationsMap.set(cId, buildHydratedConversation(storedConv));
-                                        }
                                     });
 
+                                    // Re-hydrate strictly from raw snapshot map so unreadCounts are never wiped
                                     sortAndDeliver();
                                 }
                             },
@@ -187,12 +186,10 @@ export const conversationService = {
             activeProfileListeners.forEach((unsub) => unsub());
             activeProfileListeners.clear();
             cachedUserProfiles.clear();
+            rawConversationsMap.clear();
         };
     },
 
-    /**
-     * Deletes conversation document and purges all nested messages.
-     */
     deleteConversationAndMessages: async (conversationId) => {
         if (!conversationId) return;
 
