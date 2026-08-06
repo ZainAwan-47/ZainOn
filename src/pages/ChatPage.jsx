@@ -7,7 +7,15 @@ import ChatRoom from '../components/chat/ChatRoom';
 import ProfilePreviewModal from '../components/friends/ProfilePreviewModal';
 
 export const ChatPage = () => {
-    const { conversations, activeConversationId, setActiveConversationId } = useOutletContext();
+    const {
+        conversations,
+        activeConversationId,
+        setActiveConversationId,
+        isMobile,
+        setIsSidebarOpen,
+        setActiveTab,
+    } = useOutletContext();
+
     const [selectedPreviewUser, setSelectedPreviewUser] = useState(null);
 
     const activeConversation = useMemo(
@@ -21,19 +29,35 @@ export const ChatPage = () => {
         }
     }, [setActiveConversationId]);
 
+    const handleOpenPreview = useCallback((targetUser) => {
+        if (isMobile && setIsSidebarOpen) {
+            setIsSidebarOpen(false);
+        }
+        setSelectedPreviewUser(targetUser);
+    }, [isMobile, setIsSidebarOpen]);
+
+    const handleMobileClosePreview = useCallback(() => {
+        if (isMobile) {
+            if (setIsSidebarOpen) setIsSidebarOpen(true);
+            if (setActiveTab) setActiveTab('friends');
+        }
+    }, [isMobile, setIsSidebarOpen, setActiveTab]);
+
     return (
-        <div className="flex-1 flex h-full min-h-0 relative">
+        <div className="flex-1 flex h-full min-h-0 relative overflow-hidden">
             {selectedPreviewUser && (
                 <ProfilePreviewModal
                     targetUser={selectedPreviewUser}
                     onClose={() => setSelectedPreviewUser(null)}
+                    isMobile={isMobile}
+                    onMobileClose={handleMobileClosePreview}
                 />
             )}
 
             {activeConversation ? (
                 <ChatRoom
                     conversation={activeConversation}
-                    onViewProfile={(targetUser) => setSelectedPreviewUser(targetUser)}
+                    onViewProfile={handleOpenPreview}
                     onCloseChat={handleCloseChat}
                 />
             ) : (

@@ -3,11 +3,14 @@ import {
     collection,
     doc,
     getDoc,
+    getDocs,
     setDoc,
+    deleteDoc,
     onSnapshot,
     serverTimestamp,
     query,
     where,
+    writeBatch,
 } from 'firebase/firestore';
 
 // Firebase
@@ -60,18 +63,6 @@ export const conversationService = {
                         [currentUser.uid]: 0,
                         [targetUser.uid]: 0,
                     },
-                    isArchived: {
-                        [currentUser.uid]: false,
-                        [targetUser.uid]: false,
-                    },
-                    isMuted: {
-                        [currentUser.uid]: false,
-                        [targetUser.uid]: false,
-                    },
-                    isBlocked: {
-                        [currentUser.uid]: false,
-                        [targetUser.uid]: false,
-                    },
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                 });
@@ -84,10 +75,6 @@ export const conversationService = {
         }
     },
 
-    /**
-     * Real-time conversation subscriber with persistent presence profile caching.
-     * Guarantees isOnline and read receipt dot states persist across message snapshot writes.
-     */
     subscribeToUserConversations: (currentUid, callback) => {
         if (!currentUid) return () => { };
 
@@ -147,14 +134,12 @@ export const conversationService = {
                     callback(sortedList);
                 };
 
-                // 1. Populate map using persistent profile cache
                 rawConversations.forEach((conv) => {
                     hydratedConversationsMap.set(conv.id, buildHydratedConversation(conv));
                 });
 
                 sortAndDeliver();
 
-                // 2. Attach live user presence listeners
                 rawConversations.forEach((conv) => {
                     const otherUid = conv.participantIds?.find((id) => id !== currentUid);
                     if (otherUid && !activeProfileListeners.has(otherUid)) {
@@ -175,7 +160,6 @@ export const conversationService = {
 
                                     cachedUserProfiles.set(otherUid, updatedProfile);
 
-                                    // Update all conversations containing this participant
                                     hydratedConversationsMap.forEach((storedConv, cId) => {
                                         if (storedConv.participantIds?.includes(otherUid)) {
                                             hydratedConversationsMap.set(cId, buildHydratedConversation(storedConv));
@@ -185,7 +169,7 @@ export const conversationService = {
                                     sortAndDeliver();
                                 }
                             },
-                            (err) => console.error('[subscribeToUserConversations.profile]:', err)
+                            (err) => console.warn('[subscribeToUserConversations.profile]:', err.message)
                         );
 
                         activeProfileListeners.set(otherUid, unsubProfile);
@@ -204,6 +188,37 @@ export const conversationService = {
             activeProfileListeners.clear();
             cachedUserProfiles.clear();
         };
+    },
+
+    /**
+     * Deletes conversation document and purges all nested messages.
+     */
+    deleteConversationAndMessages: async (conversationId) => {
+        if (!conversationId) return;
+
+        try {
+            const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+            const messagesSnap = await getDocs(messagesRef);
+
+            if (!messagesSnap.empty) {
+                const docs = messagesSnap.docs;
+                const chunkSize = 400;
+                for (let i = 0; i < docs.length; i += chunkSize) {
+                    const batch = writeBatch(db);
+                    const chunk = docs.slice(i, i + chunkSize);
+                    chunk.forEach((msgDoc) => {
+                        batch.delete(msgDoc.ref);
+                    });
+                    await batch.commit();
+                }
+            }
+
+            const convRef = doc(db, 'conversations', conversationId);
+            await deleteDoc(convRef);
+        } catch (error) {
+            console.error('[conversationService.deleteConversationAndMessages]:', error);
+            throw error;
+        }
     },
 };
 
