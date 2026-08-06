@@ -1,8 +1,11 @@
 // React
 import React from 'react';
 
+// Pages
+import ChatPage from './ChatPage';
+
 export const HomePage = () => {
-    return <h1>HomePage</h1>;
+    return <ChatPage />;
 };
 
 export default HomePage;

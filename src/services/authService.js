@@ -65,6 +65,25 @@ const formatAuthError = (code) => {
 
 export const authService = {
     /**
+     * Retrieves a user profile document from Firestore by user ID.
+     * @param {string} uid
+     * @returns {Promise<Object|null>}
+     */
+    getUserProfile: async (uid) => {
+        try {
+            const userDocRef = doc(db, 'users', uid);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+                return userDocSnap.data();
+            }
+            return null;
+        } catch (error) {
+            console.error('[authService.getUserProfile]:', error.code || error.message);
+            return null;
+        }
+    },
+
+    /**
      * Authenticates a user with email and password using Firebase Auth.
      * Enforces email verification before allowing an active session.
      * @param {string} email

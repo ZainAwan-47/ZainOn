@@ -1,7 +1,7 @@
 // React
 import React from 'react';
 
-// Components
+// Providers
 import AuthProvider from './AuthProvider';
 import ThemeProvider from './ThemeProvider';
 import CallProvider from './CallProvider';
@@ -10,9 +10,7 @@ export const AppProviders = ({ children }) => {
     return (
         <AuthProvider>
             <ThemeProvider>
-                <CallProvider>
-                    {children}
-                </CallProvider>
+                <CallProvider>{children}</CallProvider>
             </ThemeProvider>
         </AuthProvider>
     );
