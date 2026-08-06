@@ -7,10 +7,10 @@ import IconButton from '../components/ui/IconButton';
 
 export const ChatPage = () => {
     return (
-        <div className="h-full w-full flex flex-col min-h-0 bg-slate-950 transition-colors">
-            {/* Chat Area Header (68px) */}
-            <header className="h-[68px] px-5 border-b border-slate-800 bg-slate-900 flex items-center justify-between shrink-0 shadow-sm">
-                <div className="flex items-center space-x-3.5 min-w-0">
+        <div className="h-full w-full flex flex-col min-h-0 bg-slate-950 transition-colors select-none">
+            {/* Refined Glassmorphism Chat Header (74px) */}
+            <header className="h-[74px] px-6 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md flex items-center justify-between shrink-0 shadow-md">
+                <div className="flex items-center space-x-4 min-w-0">
                     <Avatar
                         src=""
                         name="Select Conversation"
@@ -19,21 +19,21 @@ export const ChatPage = () => {
                         showStatus={false}
                     />
                     <div className="flex flex-col min-w-0">
-                        <h2 className="text-sm font-bold text-white truncate tracking-tight">
+                        <h2 className="text-base font-bold text-white truncate tracking-tight">
                             No Conversation Selected
                         </h2>
-                        <span className="text-xs text-slate-400 font-medium flex items-center space-x-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500 inline-block" />
+                        <span className="text-xs text-slate-400 font-medium flex items-center space-x-1.5 mt-0.5">
+                            <span className="w-2 h-2 rounded-full bg-slate-500 inline-block" />
                             <span>Offline</span>
                         </span>
                     </div>
                 </div>
 
-                {/* Call & Search Controls */}
-                <div className="flex items-center space-x-1">
+                {/* Call & Action Controls */}
+                <div className="flex items-center space-x-1.5">
                     <IconButton title="Search message history" disabled size="md">
                         <svg
-                            className="w-4 h-4"
+                            className="w-4.5 h-4.5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -49,7 +49,7 @@ export const ChatPage = () => {
 
                     <IconButton title="Start Voice Call" disabled size="md">
                         <svg
-                            className="w-4 h-4"
+                            className="w-4.5 h-4.5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -65,7 +65,7 @@ export const ChatPage = () => {
 
                     <IconButton title="Start Video Call" disabled size="md">
                         <svg
-                            className="w-4 h-4"
+                            className="w-4.5 h-4.5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -79,11 +79,11 @@ export const ChatPage = () => {
                         </svg>
                     </IconButton>
 
-                    <div className="w-px h-6 bg-slate-800 mx-1.5" />
+                    <div className="w-px h-6 bg-slate-800 mx-2" />
 
-                    <IconButton title="Close Conversation" disabled size="md">
+                    <IconButton title="Close Active Conversation" disabled size="md">
                         <svg
-                            className="w-4 h-4"
+                            className="w-4.5 h-4.5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -99,12 +99,12 @@ export const ChatPage = () => {
                 </div>
             </header>
 
-            {/* Empty State Body Canvas */}
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none">
+            {/* Spacing Empty State Canvas */}
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                 <div className="relative mb-6">
-                    <div className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-indigo-500/20 to-violet-500/10 border border-indigo-800/40 flex items-center justify-center text-indigo-400 shadow-2xl ring-8 ring-indigo-950/30">
+                    <div className="w-28 h-28 rounded-[2.25rem] bg-gradient-to-tr from-indigo-600/20 via-indigo-500/10 to-violet-500/10 border border-indigo-700/40 flex items-center justify-center text-indigo-400 shadow-2xl ring-8 ring-indigo-950/40">
                         <svg
-                            className="w-12 h-12"
+                            className="w-14 h-14"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -119,17 +119,17 @@ export const ChatPage = () => {
                     </div>
                 </div>
 
-                <h3 className="text-xl font-bold text-white tracking-tight">
+                <h3 className="text-2xl font-bold text-white tracking-tight">
                     No Conversation Selected
                 </h3>
-                <p className="text-xs text-slate-400 mt-2 max-w-sm leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-400 mt-2.5 max-w-md leading-relaxed font-normal">
                     Choose a conversation from the sidebar to start chatting.
                 </p>
             </div>
 
-            {/* Message Composer Footer Bar (72px) */}
-            <footer className="h-[72px] px-4 border-t border-slate-800 bg-slate-900 flex items-center shrink-0">
-                <div className="w-full flex items-center space-x-2 bg-slate-800/50 border border-slate-700/60 rounded-2xl px-3 py-1.5 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-all">
+            {/* Message Composer Footer Bar (76px) */}
+            <footer className="h-[76px] px-6 border-t border-slate-800 bg-slate-900 flex items-center shrink-0">
+                <div className="w-full h-14 flex items-center space-x-3 bg-slate-800/60 border border-slate-700/60 rounded-2xl px-4 py-2 focus-within:border-indigo-500/80 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all duration-200">
                     <IconButton title="Attach File" disabled size="sm">
                         <svg
                             className="w-5 h-5"
@@ -166,12 +166,12 @@ export const ChatPage = () => {
                         type="text"
                         placeholder="Select a conversation to type a message..."
                         disabled
-                        className="flex-1 bg-transparent py-2 text-xs text-white placeholder-slate-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                     />
 
                     <IconButton title="Send Message" disabled variant="primary" size="sm">
                         <svg
-                            className="w-4 h-4"
+                            className="w-4.5 h-4.5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"

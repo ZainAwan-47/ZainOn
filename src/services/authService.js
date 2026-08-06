@@ -7,6 +7,9 @@ import {
     signOut,
     GoogleAuthProvider,
     signInWithPopup,
+    setPersistence,
+    browserLocalPersistence,
+    browserSessionPersistence,
 } from 'firebase/auth';
 import {
     collection,
@@ -85,13 +88,20 @@ export const authService = {
 
     /**
      * Authenticates a user with email and password using Firebase Auth.
+     * Dynamically applies browser persistence according to the rememberMe flag.
      * Enforces email verification before allowing an active session.
      * @param {string} email
      * @param {string} password
+     * @param {boolean} rememberMe
      * @returns {Promise<import('firebase/auth').UserCredential>}
      */
-    login: async (email, password) => {
+    login: async (email, password, rememberMe = true) => {
         try {
+            const persistenceMode = rememberMe
+                ? browserLocalPersistence
+                : browserSessionPersistence;
+            await setPersistence(auth, persistenceMode);
+
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
@@ -140,7 +150,6 @@ export const authService = {
      */
     register: async ({ fullName, username, email, password }) => {
         try {
-            // 1. Check if username already exists in Firestore
             const usersRef = collection(db, 'users');
             const usernameQuery = query(usersRef, where('username', '==', username));
             const querySnapshot = await getDocs(usernameQuery);
@@ -149,11 +158,9 @@ export const authService = {
                 throw new Error('Username is already taken.');
             }
 
-            // 2. Create Firebase Authentication User
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // 3. Create Firestore User Document
             const userDocRef = doc(db, 'users', user.uid);
             await setDoc(userDocRef, {
                 uid: user.uid,
@@ -169,7 +176,6 @@ export const authService = {
                 updatedAt: serverTimestamp(),
             });
 
-            // 4. Send Email Verification
             await sendEmailVerification(user);
 
             return userCredential;
@@ -194,12 +200,10 @@ export const authService = {
             const userCredential = await signInWithPopup(auth, provider);
             const user = userCredential.user;
 
-            // Check if user document already exists in Firestore
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
 
             if (!userDocSnap.exists()) {
-                // Generate valid base username from email or fallback
                 let baseUsername = user.email
                     ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
                     : 'user';
@@ -211,7 +215,6 @@ export const authService = {
                     baseUsername = baseUsername.substring(0, 20);
                 }
 
-                // Verify username uniqueness in Firestore
                 const usersRef = collection(db, 'users');
                 const usernameQuery = query(usersRef, where('username', '==', baseUsername));
                 const querySnapshot = await getDocs(usernameQuery);
@@ -221,7 +224,6 @@ export const authService = {
                     finalUsername = `${baseUsername.substring(0, 14)}_${Math.floor(1000 + Math.random() * 9000)}`;
                 }
 
-                // Create Firestore profile document
                 await setDoc(userDocRef, {
                     uid: user.uid,
                     fullName: user.displayName || 'ZainOn User',

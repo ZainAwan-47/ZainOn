@@ -24,14 +24,16 @@ export const PasswordInput = forwardRef(
 
         return (
             <div className="flex flex-col space-y-1.5">
-                <label
-                    htmlFor={id}
-                    className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center justify-between"
-                >
-                    <span>
-                        {label} {required && <span className="text-rose-500">*</span>}
-                    </span>
-                </label>
+                {label && (
+                    <label
+                        htmlFor={id}
+                        className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center justify-between"
+                    >
+                        <span>
+                            {label} {required && <span className="text-rose-500">*</span>}
+                        </span>
+                    </label>
+                )}
                 <div className="relative flex items-center">
                     <input
                         ref={ref}

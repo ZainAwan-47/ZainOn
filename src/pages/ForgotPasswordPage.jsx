@@ -31,10 +31,10 @@ export const ForgotPasswordPage = () => {
         register,
         handleSubmit,
         reset,
-        formState: { errors, isValid },
+        formState: { errors },
     } = useForm({
         resolver: zodResolver(forgotPasswordSchema),
-        mode: 'onChange',
+        mode: 'onSubmit',
         defaultValues: {
             email: '',
         },
@@ -57,10 +57,10 @@ export const ForgotPasswordPage = () => {
     };
 
     return (
-        <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none p-6 sm:p-8 transition-colors">
-            {/* Brand Header */}
-            <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-3">
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 transition-colors">
+            {/* Mobile-Only Header Banner */}
+            <div className="lg:hidden flex flex-col items-center text-center mb-6">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-3">
                     <svg
                         className="w-7 h-7 text-white"
                         fill="none"
@@ -75,14 +75,14 @@ export const ForgotPasswordPage = () => {
                         />
                     </svg>
                 </div>
-                <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mb-4">
+                <span className="text-xl font-bold tracking-tight text-white mb-2">
                     ZainOn
                 </span>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                <h1 className="text-2xl font-bold text-white tracking-tight">
                     Forgot Password
                 </h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">
-                    Enter your email address and we&apos;ll send you a password reset link.
+                <p className="text-xs text-slate-400 mt-1">
+                    Enter your email address to receive a password reset link
                 </p>
             </div>
 
@@ -101,17 +101,17 @@ export const ForgotPasswordPage = () => {
                 />
 
                 <div className="pt-2">
-                    <PrimaryButton type="submit" disabled={!isValid || isLoading}>
+                    <PrimaryButton type="submit" disabled={isLoading}>
                         {isLoading ? 'Sending Reset Link...' : 'Send Reset Link'}
                     </PrimaryButton>
                 </div>
             </form>
 
-            {/* Success Notification Banner */}
+            {/* Success Banner */}
             {successMessage && (
                 <div
                     role="status"
-                    className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 text-xs flex items-center space-x-2"
                 >
                     <svg
                         className="w-4 h-4 flex-shrink-0 text-emerald-500"
@@ -130,11 +130,11 @@ export const ForgotPasswordPage = () => {
                 </div>
             )}
 
-            {/* Error Notification Banner */}
+            {/* Error Banner */}
             {resetError && (
                 <div
                     role="alert"
-                    className="mt-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs flex items-center space-x-2"
                 >
                     <svg
                         className="w-4 h-4 flex-shrink-0 text-rose-500"
@@ -157,7 +157,7 @@ export const ForgotPasswordPage = () => {
             <div className="text-center mt-6">
                 <Link
                     to="/login"
-                    className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
+                    className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-indigo-400 focus:outline-none transition-colors"
                 >
                     <svg
                         className="w-4 h-4"

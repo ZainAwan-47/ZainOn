@@ -5,6 +5,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // Layouts
+import AuthLayout from '../layouts/AuthLayout';
 import MainAppLayout from '../layouts/MainAppLayout';
 
 // Routes
@@ -20,12 +21,14 @@ import ChatPage from '../pages/ChatPage';
 export const AppRouter = () => {
     return (
         <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            {/* Public Auth Routes inside 50/50 Split AuthLayout */}
+            <Route element={<AuthLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            </Route>
 
-            {/* Protected Routes encapsulated within Main App Layout Shell */}
+            {/* Protected App Routes inside Main Workspace Layout */}
             <Route element={<ProtectedRoute />}>
                 <Route element={<MainAppLayout />}>
                     <Route path="/" element={<HomePage />} />

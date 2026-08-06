@@ -39,27 +39,27 @@ export const MainAppLayout = () => {
     };
 
     return (
-        <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans flex">
+        <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans flex select-none">
             {/* Mobile Drawer Overlay */}
             {isMobileMenuOpen && (
                 <div
                     onClick={closeMobileMenu}
-                    className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40 md:hidden transition-opacity"
+                    className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-40 md:hidden transition-opacity duration-200"
                     aria-hidden="true"
                 />
             )}
 
-            {/* 320px Sidebar Navigation */}
+            {/* 336px Sidebar Navigation Panel */}
             <aside
-                className={`fixed md:static inset-y-0 left-0 z-50 w-80 min-w-[320px] bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+                className={`fixed md:static inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-slate-900 border-r border-slate-800/90 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
                     }`}
             >
-                {/* Brand Header */}
-                <div className="h-16 px-4 border-b border-slate-800 flex items-center justify-between shrink-0">
-                    <div className="flex items-center space-x-3">
-                        <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                {/* Brand Header (72px) */}
+                <div className="h-[72px] px-5 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-900/90 backdrop-blur-md">
+                    <div className="flex items-center space-x-3.5">
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/10">
                             <svg
-                                className="w-5 h-5 text-white"
+                                className="w-5.5 h-5.5 text-white"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -73,17 +73,17 @@ export const MainAppLayout = () => {
                             </svg>
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-base font-bold tracking-tight text-white leading-none">
+                            <span className="text-lg font-bold tracking-tight text-white leading-tight">
                                 ZainOn
                             </span>
-                            <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mt-0.5">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">
                                 Realtime Workspace
                             </span>
                         </div>
                     </div>
 
                     <div className="md:hidden">
-                        <IconButton onClick={closeMobileMenu} title="Close menu">
+                        <IconButton onClick={closeMobileMenu} title="Close menu" size="sm">
                             <svg
                                 className="w-5 h-5"
                                 fill="none"
@@ -101,11 +101,11 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* Search Input Bar */}
-                <div className="p-3 border-b border-slate-800/60 shrink-0">
+                {/* Search Bar Input Container */}
+                <div className="p-3.5 border-b border-slate-800/60 shrink-0">
                     <div className="relative flex items-center">
                         <svg
-                            className="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none"
+                            className="w-4 h-4 absolute left-3.5 text-slate-400 pointer-events-none"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -119,20 +119,20 @@ export const MainAppLayout = () => {
                         </svg>
                         <input
                             type="text"
-                            placeholder="Search conversations..."
-                            className="w-full pl-9 pr-4 py-2 bg-slate-800/70 border border-transparent focus:border-indigo-500 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none transition-all"
+                            placeholder="Search chats, groups, messages..."
+                            className="w-full pl-9.5 pr-4 py-2 bg-slate-800/70 border border-slate-700/40 focus:border-indigo-500/80 focus:ring-2 focus:ring-indigo-500/15 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none transition-all"
                         />
                     </div>
                 </div>
 
-                {/* Navigation Selector Tabs */}
-                <div className="px-3 py-2 flex items-center space-x-1 border-b border-slate-800/80 shrink-0 bg-slate-900/50">
+                {/* Navigation Tabs (Chats vs Groups) */}
+                <div className="px-3.5 py-2.5 flex items-center space-x-1 border-b border-slate-800/80 shrink-0 bg-slate-900/60">
                     <button
                         type="button"
                         onClick={() => setActiveTab('chats')}
-                        className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${activeTab === 'chats'
-                                ? 'bg-slate-800 text-indigo-400 shadow-sm'
-                                : 'text-slate-400 hover:text-white'
+                        className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${activeTab === 'chats'
+                                ? 'bg-slate-800 text-indigo-400 shadow-sm ring-1 ring-slate-700/50'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                             }`}
                     >
                         Chats
@@ -140,64 +140,94 @@ export const MainAppLayout = () => {
                     <button
                         type="button"
                         onClick={() => setActiveTab('groups')}
-                        className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${activeTab === 'groups'
-                                ? 'bg-slate-800 text-indigo-400 shadow-sm'
-                                : 'text-slate-400 hover:text-white'
+                        className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${activeTab === 'groups'
+                                ? 'bg-slate-800 text-indigo-400 shadow-sm ring-1 ring-slate-700/50'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                             }`}
                     >
                         Groups
                     </button>
                 </div>
 
-                {/* Conversation Placeholders List */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 divide-y divide-slate-800/40">
+                {/* Scalable Conversation Cards Container */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-1.5 divide-y divide-slate-800/30">
                     {activeTab === 'chats' ? (
-                        <div className="space-y-1 pt-1">
-                            <div className="p-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-800 transition-colors cursor-pointer flex items-center space-x-3">
+                        <div className="space-y-1.5 pt-0.5">
+                            {/* Conversation Row 1 (Online + Seen Status) */}
+                            <div className="p-3 rounded-2xl bg-slate-800/40 hover:bg-slate-800/80 border border-transparent hover:border-slate-700/50 transition-all cursor-pointer flex items-center space-x-3.5 group">
                                 <Avatar name="Sarah Connor" isOnline={true} size="md" />
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <span className="text-xs font-bold text-white truncate">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
                                             Sarah Connor
                                         </span>
-                                        <span className="text-[10px] text-slate-400">10:42 AM</span>
+                                        <span className="text-[10px] font-medium text-slate-400">10:42 AM</span>
                                     </div>
-                                    <p className="text-xs text-slate-400 truncate">
-                                        Let&apos;s sync on the new design specs later today!
-                                    </p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-slate-400 truncate pr-2">
+                                            Let&apos;s sync on the new design specs later today!
+                                        </p>
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Seen" />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="p-2.5 rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer flex items-center space-x-3">
+                            {/* Conversation Row 2 (Offline + Delivered Status) */}
+                            <div className="p-3 rounded-2xl hover:bg-slate-800/60 border border-transparent hover:border-slate-700/40 transition-all cursor-pointer flex items-center space-x-3.5 group">
                                 <Avatar name="David Miller" isOnline={false} size="md" />
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <span className="text-xs font-bold text-white truncate">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-slate-300 truncate group-hover:text-white transition-colors">
                                             David Miller
                                         </span>
-                                        <span className="text-[10px] text-slate-400">Yesterday</span>
+                                        <span className="text-[10px] font-medium text-slate-400">Yesterday</span>
                                     </div>
-                                    <p className="text-xs text-slate-400 truncate">
-                                        Have you reviewed the Firestore rules update?
-                                    </p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-slate-400 truncate pr-2">
+                                            Have you reviewed the Firestore rules update?
+                                        </p>
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Delivered" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Conversation Row 3 (Unread Badge Sample) */}
+                            <div className="p-3 rounded-2xl bg-indigo-950/20 hover:bg-indigo-950/40 border border-indigo-900/30 transition-all cursor-pointer flex items-center space-x-3.5 group">
+                                <Avatar name="Elena Rostova" isOnline={true} size="md" />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold text-white truncate">
+                                            Elena Rostova
+                                        </span>
+                                        <span className="text-[10px] font-bold text-indigo-400">09:15 AM</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs font-semibold text-slate-200 truncate pr-2">
+                                            Hey! Is the WebRTC call feature ready?
+                                        </p>
+                                        <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-[10px] font-extrabold text-white shrink-0 shadow-sm">
+                                            2
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-1 pt-1">
-                            <div className="p-2.5 rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer flex items-center space-x-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                        <div className="space-y-1.5 pt-0.5">
+                            {/* Group Row 1 */}
+                            <div className="p-3 rounded-2xl hover:bg-slate-800/60 border border-transparent hover:border-slate-700/40 transition-all cursor-pointer flex items-center space-x-3.5">
+                                <div className="w-10.5 h-10.5 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-md ring-1 ring-white/10">
                                     DEV
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-0.5">
+                                    <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-bold text-white truncate">
                                             Frontend Core Team
                                         </span>
-                                        <span className="text-[10px] text-slate-400">Mon</span>
+                                        <span className="text-[10px] font-medium text-slate-400">Mon</span>
                                     </div>
                                     <p className="text-xs text-slate-400 truncate">
-                                        Alex: Application Shell v1.1 is locked!
+                                        Alex: Application Shell v1.2 is locked!
                                     </p>
                                 </div>
                             </div>
@@ -205,13 +235,15 @@ export const MainAppLayout = () => {
                     )}
                 </div>
 
-                {/* Route Action Bar */}
-                <div className="px-3 py-1.5 border-t border-slate-800 flex items-center space-x-1 bg-slate-900/60 shrink-0">
+                {/* Quick Navigation Action Strip */}
+                <div className="px-3.5 py-2 border-t border-slate-800/80 flex items-center space-x-1 bg-slate-900/60 shrink-0">
                     <NavLink
                         to="/chat"
                         onClick={closeMobileMenu}
                         className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-medium transition-colors ${isActive ? 'text-indigo-400 font-semibold' : 'text-slate-400 hover:text-white'
+                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive
+                                ? 'text-indigo-400 bg-slate-800/80'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                             }`
                         }
                     >
@@ -221,7 +253,9 @@ export const MainAppLayout = () => {
                         to="/profile"
                         onClick={closeMobileMenu}
                         className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-medium transition-colors ${isActive ? 'text-indigo-400 font-semibold' : 'text-slate-400 hover:text-white'
+                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive
+                                ? 'text-indigo-400 bg-slate-800/80'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                             }`
                         }
                     >
@@ -231,7 +265,9 @@ export const MainAppLayout = () => {
                         to="/settings"
                         onClick={closeMobileMenu}
                         className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-lg text-xs font-medium transition-colors ${isActive ? 'text-indigo-400 font-semibold' : 'text-slate-400 hover:text-white'
+                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive
+                                ? 'text-indigo-400 bg-slate-800/80'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
                             }`
                         }
                     >
@@ -239,9 +275,9 @@ export const MainAppLayout = () => {
                     </NavLink>
                 </div>
 
-                {/* User Profile Footer Card */}
-                <div className="p-3 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between shrink-0">
-                    <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                {/* Current User Profile Card Footer (72px) */}
+                <div className="h-[72px] px-4 border-t border-slate-800/90 bg-slate-900/95 backdrop-blur-md flex items-center justify-between shrink-0">
+                    <div className="flex items-center space-x-3 min-w-0 pr-2">
                         <Avatar
                             src={user?.photoURL}
                             name={user?.fullName || user?.displayName || 'User'}
@@ -252,7 +288,7 @@ export const MainAppLayout = () => {
                             <span className="text-xs font-bold text-white truncate">
                                 {user?.fullName || user?.displayName || 'ZainOn User'}
                             </span>
-                            <span className="text-[10px] text-slate-400 truncate">
+                            <span className="text-[10px] font-medium text-slate-400 truncate">
                                 @{user?.username || 'user'}
                             </span>
                         </div>
@@ -304,9 +340,9 @@ export const MainAppLayout = () => {
                 </div>
             </aside>
 
-            {/* Main Content Area */}
+            {/* Main Workspace Region */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-950 transition-colors h-full">
-                {/* Mobile Header Banner */}
+                {/* Mobile Top Navbar Header */}
                 <header className="md:hidden h-14 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-900 shrink-0">
                     <div className="flex items-center space-x-3">
                         <IconButton onClick={toggleMobileMenu} title="Open sidebar">

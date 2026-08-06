@@ -62,10 +62,10 @@ export const RegisterPage = () => {
         register,
         handleSubmit,
         reset,
-        formState: { errors, isValid },
+        formState: { errors },
     } = useForm({
         resolver: zodResolver(registerSchema),
-        mode: 'onChange',
+        mode: 'onSubmit',
         defaultValues: {
             fullName: '',
             username: '',
@@ -115,10 +115,10 @@ export const RegisterPage = () => {
     const isAnyLoading = isLoading || isGoogleLoading;
 
     return (
-        <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none p-6 sm:p-8 transition-colors">
-            {/* Brand Header */}
-            <div className="flex flex-col items-center text-center mb-6 sm:mb-8">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-3">
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 transition-colors">
+            {/* Mobile-Only Header Banner */}
+            <div className="lg:hidden flex flex-col items-center text-center mb-6">
+                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-3">
                     <svg
                         className="w-7 h-7 text-white"
                         fill="none"
@@ -133,18 +133,18 @@ export const RegisterPage = () => {
                         />
                     </svg>
                 </div>
-                <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white mb-4">
+                <span className="text-xl font-bold tracking-tight text-white mb-2">
                     ZainOn
                 </span>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                <h1 className="text-2xl font-bold text-white tracking-tight">
                     Create Account
                 </h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">
+                <p className="text-xs text-slate-400 mt-1">
                     Join ZainOn to start real-time messaging
                 </p>
             </div>
 
-            {/* Form */}
+            {/* Registration Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
                 <AuthInput
                     id="fullName"
@@ -205,7 +205,7 @@ export const RegisterPage = () => {
                 />
 
                 <div className="pt-2">
-                    <PrimaryButton type="submit" disabled={!isValid || isAnyLoading}>
+                    <PrimaryButton type="submit" disabled={isAnyLoading}>
                         {isLoading ? 'Creating Account...' : 'Create Account'}
                     </PrimaryButton>
                 </div>
@@ -215,7 +215,7 @@ export const RegisterPage = () => {
             {successMessage && (
                 <div
                     role="status"
-                    className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 text-xs flex items-center space-x-2"
                 >
                     <svg
                         className="w-4 h-4 flex-shrink-0 text-emerald-500"
@@ -238,7 +238,7 @@ export const RegisterPage = () => {
             {registrationError && (
                 <div
                     role="alert"
-                    className="mt-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs flex items-center space-x-2"
                 >
                     <svg
                         className="w-4 h-4 flex-shrink-0 text-rose-500"
@@ -259,8 +259,8 @@ export const RegisterPage = () => {
 
             {/* Divider */}
             <div className="relative my-6 flex items-center justify-center">
-                <div className="w-full border-t border-slate-200 dark:border-slate-800" />
-                <span className="absolute bg-white dark:bg-slate-900 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                <div className="w-full border-t border-slate-800" />
+                <span className="absolute bg-slate-900 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                     OR
                 </span>
             </div>
@@ -270,7 +270,7 @@ export const RegisterPage = () => {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isAnyLoading}
-                className="w-full py-3 px-4 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700/80 text-slate-200 font-medium border border-slate-700 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
@@ -294,11 +294,11 @@ export const RegisterPage = () => {
             </button>
 
             {/* Footer Link */}
-            <p className="text-center text-xs text-slate-500 dark:text-slate-400 mt-6">
+            <p className="text-center text-xs text-slate-400 mt-6">
                 Already have an account?{' '}
                 <Link
                     to="/login"
-                    className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline focus:outline-none"
+                    className="font-semibold text-indigo-400 hover:underline focus:outline-none"
                 >
                     Sign In
                 </Link>
