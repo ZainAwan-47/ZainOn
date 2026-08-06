@@ -1,21 +1,29 @@
-// src/main.jsx
+// React
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
-// Global Styles (CRITICAL: Must be imported here for Tailwind to compile)
-import './styles/global.css';
+// Context Providers
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 
-// Providers & Router
-import AppProviders from './providers/AppProviders';
+// Application Router
 import AppRouter from './routes/AppRouter';
+
+// Global Styles
+import './styles/global.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AppProviders>
-        <AppRouter />
-      </AppProviders>
+      <AuthProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <AppRouter />
+          </ToastProvider>
+        </ThemeProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

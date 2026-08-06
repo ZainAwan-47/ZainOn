@@ -1,7 +1,4 @@
-// React
 import { useContext } from 'react';
-
-// Context
 import { AuthContext } from '../context/AuthContext';
 
 export const useAuth = () => {
@@ -11,5 +8,3 @@ export const useAuth = () => {
     }
     return context;
 };
-
-export default useAuth;

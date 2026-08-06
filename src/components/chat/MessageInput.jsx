@@ -1,0 +1,117 @@
+// React
+import React, { useState, useRef, memo } from 'react';
+
+// Components
+import EmojiPicker from './EmojiPicker';
+
+export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled = false }) => {
+    const [text, setText] = useState('');
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const textareaRef = useRef(null);
+
+    const handleSubmit = (e) => {
+        if (e) e.preventDefault();
+        const trimmed = text.trim();
+        if (!trimmed || disabled) return;
+
+        onSend(trimmed, replyingTo);
+        setText('');
+        if (onCancelReply) onCancelReply();
+
+        // Retain keyboard focus on identical DOM element instance
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.focus();
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit(e);
+        }
+    };
+
+    const handleSelectEmoji = (emoji) => {
+        setText((prev) => prev + emoji);
+    };
+
+    return (
+        <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-slate-900 border-t border-slate-800/80 flex flex-col shrink-0 select-none"
+        >
+            {showEmojiPicker && (
+                <EmojiPicker
+                    onSelectEmoji={handleSelectEmoji}
+                    onClose={() => setShowEmojiPicker(false)}
+                />
+            )}
+
+            {replyingTo && (
+                <div className="px-4 py-2 bg-slate-800/80 border-b border-slate-700/60 flex items-center justify-between space-x-3 text-xs">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                        <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        <div className="flex flex-col min-w-0 flex-1">
+                            <span className="text-[10px] font-bold text-indigo-300">
+                                Replying to {replyingTo.senderName || 'User'}
+                            </span>
+                            <p className="text-slate-300 truncate">{replyingTo.text}</p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onCancelReply}
+                        className="text-slate-400 hover:text-white shrink-0 focus:outline-none"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="p-3 flex items-end space-x-2">
+                <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker((prev) => !prev)}
+                    className="p-2.5 text-slate-400 hover:text-amber-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition-all shrink-0 focus:outline-none"
+                    title="Add Emoji"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+
+                <div className="flex-1 bg-slate-800/80 border border-slate-700/60 rounded-2xl focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all px-3.5 py-2">
+                    <textarea
+                        ref={textareaRef}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
+                        rows={1}
+                        disabled={disabled}
+                        className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none resize-none max-h-28 scrollbar-thin"
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    disabled={!text.trim() || disabled}
+                    className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus:outline-none"
+                    title="Send Message"
+                >
+                    <svg className="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    );
+});
+
+MessageInput.displayName = 'MessageInput';
+export default MessageInput;

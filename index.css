@@ -1,0 +1,35 @@
+@keyframes messageEntry {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.animate-message-entry {
+    animation: messageEntry 200ms cubic-bezier(0, 0, 0.2, 1) forwards;
+    will-change: transform, opacity;
+}
+
+@layer utilities {
+    .scrollbar-thin {
+        scroll-behavior: smooth;
+        overscroll-behavior-y: contain;
+    }
+}
+
+@keyframes messageEntry {
+    0% {
+        opacity: 0;
+        transform: translateY(16px) scale(0.98);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

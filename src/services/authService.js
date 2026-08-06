@@ -26,11 +26,9 @@ import {
 import { auth } from '../firebase/auth';
 import { db } from '../firebase/firestore';
 
-/**
- * Maps Firebase Authentication and Cloud Firestore error codes to user-friendly messages.
- * @param {string} code - The Firebase error code or custom error message.
- * @returns {string} User-friendly error message.
- */
+// Services
+import { presenceService } from './presenceService';
+
 const formatAuthError = (code) => {
     switch (code) {
         case 'auth/popup-closed-by-user':
@@ -67,11 +65,6 @@ const formatAuthError = (code) => {
 };
 
 export const authService = {
-    /**
-     * Retrieves a user profile document from Firestore by user ID.
-     * @param {string} uid
-     * @returns {Promise<Object|null>}
-     */
     getUserProfile: async (uid) => {
         try {
             const userDocRef = doc(db, 'users', uid);
@@ -86,15 +79,6 @@ export const authService = {
         }
     },
 
-    /**
-     * Authenticates a user with email and password using Firebase Auth.
-     * Dynamically applies browser persistence according to the rememberMe flag.
-     * Enforces email verification before allowing an active session.
-     * @param {string} email
-     * @param {string} password
-     * @param {boolean} rememberMe
-     * @returns {Promise<import('firebase/auth').UserCredential>}
-     */
     login: async (email, password, rememberMe = true) => {
         try {
             const persistenceMode = rememberMe
@@ -110,6 +94,9 @@ export const authService = {
                 throw new Error('Please verify your email before signing in.');
             }
 
+            // Automatically flag user online in Firestore
+            await presenceService.setOnline(user.uid);
+
             return userCredential;
         } catch (error) {
             console.error('[authService.login]:', error.code || error.message);
@@ -121,12 +108,6 @@ export const authService = {
         }
     },
 
-    /**
-     * Resends a verification email to an unverified user account.
-     * @param {string} email
-     * @param {string} password
-     * @returns {Promise<void>}
-     */
     resendVerificationEmail: async (email, password) => {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -139,15 +120,6 @@ export const authService = {
         }
     },
 
-    /**
-     * Registers a new user, creates a Firestore document, and sends email verification.
-     * @param {Object} userData
-     * @param {string} userData.fullName
-     * @param {string} userData.username
-     * @param {string} userData.email
-     * @param {string} userData.password
-     * @returns {Promise<import('firebase/auth').UserCredential>}
-     */
     register: async ({ fullName, username, email, password }) => {
         try {
             const usersRef = collection(db, 'users');
@@ -170,7 +142,7 @@ export const authService = {
                 role: 'user',
                 bio: '',
                 status: "Hey there! I'm using ZainOn.",
-                isOnline: false,
+                isOnline: true,
                 lastSeen: null,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
@@ -189,11 +161,6 @@ export const authService = {
         }
     },
 
-    /**
-     * Authenticates a user using Google OAuth popup.
-     * Provisions a Firestore user document if signing in for the first time.
-     * @returns {Promise<import('firebase/auth').UserCredential>}
-     */
     googleLogin: async () => {
         try {
             const provider = new GoogleAuthProvider();
@@ -232,11 +199,13 @@ export const authService = {
                     role: 'user',
                     bio: '',
                     status: "Hey there! I'm using ZainOn.",
-                    isOnline: false,
+                    isOnline: true,
                     lastSeen: null,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                 });
+            } else {
+                await presenceService.setOnline(user.uid);
             }
 
             return userCredential;
@@ -247,11 +216,6 @@ export const authService = {
         }
     },
 
-    /**
-     * Sends a password reset email to the specified address.
-     * @param {string} email
-     * @returns {Promise<void>}
-     */
     resetPassword: async (email) => {
         try {
             await sendPasswordResetEmail(auth, email);
@@ -262,12 +226,12 @@ export const authService = {
         }
     },
 
-    /**
-     * Signs out the currently authenticated user from Firebase Auth.
-     * @returns {Promise<void>}
-     */
     logout: async () => {
         try {
+            if (auth.currentUser) {
+                // Automatically flag user offline in Firestore prior to signout
+                await presenceService.setOffline(auth.currentUser.uid);
+            }
             await signOut(auth);
         } catch (error) {
             console.error('[authService.logout]:', error.code || error.message);
