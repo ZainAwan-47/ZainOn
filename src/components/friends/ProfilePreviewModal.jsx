@@ -12,6 +12,7 @@ import { useToast } from '../../context/ToastContext';
 // Components
 import Avatar from '../ui/Avatar';
 import PresenceIndicator from '../ui/PresenceIndicator';
+import FriendActionButton from './FriendActionButton';
 
 export const ProfilePreviewModal = memo(({
     targetUser,
@@ -80,11 +81,6 @@ export const ProfilePreviewModal = memo(({
 
     return (
         <AnimatePresence>
-            {/* 
-        Workspace Bounded Overlay:
-        Utilizes absolute transform centering (`left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`).
-        Guarantees the card stays centered inside the workspace and never bleeds into the sidebar.
-      */}
             <div
                 className="absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md overflow-hidden min-w-0"
                 onClick={handleCloseModal}
@@ -145,7 +141,7 @@ export const ProfilePreviewModal = memo(({
                         </p>
                     </div>
 
-                    {/* Action Buttons (Adaptive column/row layout) */}
+                    {/* Action Buttons */}
                     <div className="flex flex-col gap-2 pt-1 min-w-0">
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 min-w-0">
                             {onStartChat && (
@@ -158,7 +154,7 @@ export const ProfilePreviewModal = memo(({
                                     className="flex-1 py-2 sm:py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold text-xs transition-all shadow-md active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer min-w-0"
                                 >
                                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                     </svg>
                                     <span className="truncate">Message</span>
                                 </button>
@@ -173,19 +169,26 @@ export const ProfilePreviewModal = memo(({
                             </button>
                         </div>
 
-                        {isFriend && (
-                            <button
-                                type="button"
-                                disabled={loadingAction}
-                                onClick={handleRemoveFriend}
-                                className="w-full py-2 sm:py-2.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl font-semibold text-xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 min-w-0"
-                            >
-                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6h12a6 6 0 00-6-6zM21 12h-6" />
-                                </svg>
-                                <span className="truncate">{loadingAction ? 'Removing...' : 'Remove Friend'}</span>
-                            </button>
-                        )}
+                        {/* Friend Action / Management Button */}
+                        <div className="w-full pt-1">
+                            {isFriend ? (
+                                <button
+                                    type="button"
+                                    disabled={loadingAction}
+                                    onClick={handleRemoveFriend}
+                                    className="w-full py-2 sm:py-2.5 px-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl font-semibold text-xs transition-all active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 min-w-0"
+                                >
+                                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6h12a6 6 0 00-6-6zM21 12h-6" />
+                                    </svg>
+                                    <span className="truncate">
+                                        {loadingAction ? 'Removing...' : 'Remove Friend'}
+                                    </span>
+                                </button>
+                            ) : (
+                                <FriendActionButton targetUser={targetUser} fullWidth />
+                            )}
+                        </div>
                     </div>
                 </motion.div>
             </div>

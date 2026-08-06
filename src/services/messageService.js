@@ -18,10 +18,13 @@ import {
 import { db } from '../firebase/firestore';
 
 export const messageService = {
-    /**
-     * Sends a message atomically via Write Batch.
-     */
-    sendMessage: async (conversationId, senderId, text, recipientId, replyTo = null) => {
+    sendMessage: async (
+        conversationId,
+        senderId,
+        text,
+        recipientId,
+        replyTo = null
+    ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
             throw new Error('Invalid message parameters.');
@@ -61,13 +64,16 @@ export const messageService = {
             const convRef = doc(db, 'conversations', conversationId);
             const convUpdateData = {
                 lastMessage: {
+                    id: messageId,
                     text: trimmedText,
                     senderId,
                     type: 'text',
+                    deliveryStatus: 'sent',
                     createdAt: serverTimestamp(),
                 },
                 lastActivity: serverTimestamp(),
                 updatedAt: serverTimestamp(),
+                hiddenFor: [],
             };
 
             if (recipientId) {
@@ -75,8 +81,8 @@ export const messageService = {
             }
 
             batch.update(convRef, convUpdateData);
-
             await batch.commit();
+
             return messageId;
         } catch (error) {
             console.error('[messageService.sendMessage]:', error);
@@ -84,26 +90,46 @@ export const messageService = {
         }
     },
 
-    /**
-     * Subscribes to real-time messages.
-     */
-    subscribeToMessages: (conversationId, limitCount = 50, callback) => {
+    subscribeToMessages: (conversationId, currentUid, limitCount = 50, callback) => {
         if (!conversationId) return () => { };
 
+        const convRef = doc(db, 'conversations', conversationId);
         const messagesRef = collection(db, 'conversations', conversationId, 'messages');
         const q = query(messagesRef, orderBy('createdAt', 'asc'), limitToLast(limitCount));
 
-        return onSnapshot(
+        let userClearedAt = 0;
+
+        const unsubConv = onSnapshot(
+            convRef,
+            (convSnap) => {
+                if (convSnap.exists()) {
+                    const data = convSnap.data();
+                    userClearedAt = data.clearedAt?.[currentUid]?.toMillis?.() || 0;
+                }
+            },
+            (err) => console.warn('[subscribeToMessages.convRef]:', err.message)
+        );
+
+        const unsubMessages = onSnapshot(
             q,
             (snapshot) => {
-                const messages = snapshot.docs.map((docSnap) => {
-                    const data = docSnap.data();
-                    return {
-                        id: docSnap.id,
-                        ...data,
-                        createdAt: data.createdAt || new Date(),
-                    };
-                });
+                const messages = snapshot.docs
+                    .map((docSnap) => {
+                        const data = docSnap.data();
+                        return {
+                            id: docSnap.id,
+                            ...data,
+                            createdAt: data.createdAt || new Date(),
+                        };
+                    })
+                    .filter((msg) => {
+                        if (!userClearedAt) return true;
+                        const msgTime =
+                            msg.createdAt?.toMillis?.() ||
+                            (msg.createdAt instanceof Date ? msg.createdAt.getTime() : 0);
+                        return msgTime > userClearedAt;
+                    });
+
                 callback(messages);
             },
             (error) => {
@@ -111,20 +137,41 @@ export const messageService = {
                 callback([]);
             }
         );
+
+        return () => {
+            unsubConv();
+            unsubMessages();
+        };
     },
 
     /**
-     * Realtime Delivery Acknowledgement (Gray -> Orange).
+     * Background delivery receipt update (Grey -> Orange).
      */
     markAsDelivered: async (conversationId, recipientUid, undeliveredMessages = []) => {
         if (!conversationId || !recipientUid || undeliveredMessages.length === 0) return;
 
         try {
             const batch = writeBatch(db);
+
             undeliveredMessages.forEach((msg) => {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, { deliveryStatus: 'delivered' });
             });
+
+            // Update parent conversation lastMessage deliveryStatus to update sidebar snapshots instantly
+            const convRef = doc(db, 'conversations', conversationId);
+            const convSnap = await getDoc(convRef);
+            if (convSnap.exists()) {
+                const convData = convSnap.data();
+                if (
+                    convData.lastMessage &&
+                    undeliveredMessages.some((m) => m.id === convData.lastMessage.id)
+                ) {
+                    batch.update(convRef, {
+                        'lastMessage.deliveryStatus': 'delivered',
+                    });
+                }
+            }
 
             await batch.commit();
         } catch (error) {
@@ -133,14 +180,13 @@ export const messageService = {
     },
 
     /**
-     * Realtime Seen Acknowledgement (Orange -> Green).
+     * Active view read receipt update (Orange -> Green).
      */
     markAsSeen: async (conversationId, currentUid, unseenMessages = []) => {
         if (!conversationId || !currentUid || unseenMessages.length === 0) return;
 
         try {
             const batch = writeBatch(db);
-
             unseenMessages.forEach((msg) => {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, {
@@ -152,6 +198,7 @@ export const messageService = {
             const convRef = doc(db, 'conversations', conversationId);
             batch.update(convRef, {
                 [`unreadCounts.${currentUid}`]: 0,
+                'lastMessage.deliveryStatus': 'read',
             });
 
             await batch.commit();
@@ -170,7 +217,6 @@ export const messageService = {
 
             const latestData = snap.data();
             const latestReactions = latestData.reactions || {};
-
             const existingUsers = latestReactions[emoji] || [];
             const hasReacted = existingUsers.includes(currentUid);
 
@@ -224,7 +270,12 @@ export const messageService = {
         }
     },
 
-    toggleStarMessage: async (conversationId, messageId, currentUid, currentStarredMap = {}) => {
+    toggleStarMessage: async (
+        conversationId,
+        messageId,
+        currentUid,
+        currentStarredMap = {}
+    ) => {
         if (!conversationId || !messageId || !currentUid) return;
 
         try {

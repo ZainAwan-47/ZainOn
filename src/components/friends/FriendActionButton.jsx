@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { friendService } from '../../services/friendService';
 import { useToast } from '../../context/ToastContext';
 
-export const FriendActionButton = memo(({ targetUser }) => {
+export const FriendActionButton = memo(({ targetUser, fullWidth = false }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
 
@@ -57,48 +57,61 @@ export const FriendActionButton = memo(({ targetUser }) => {
         }
     };
 
+    const containerClasses = fullWidth ? 'w-full' : '';
+
     if (status === 'FRIENDS') {
         return (
-            <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center space-x-1 select-none">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Friends</span>
-            </span>
+            <div className={containerClasses}>
+                <span className="w-full py-2 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center space-x-1 select-none">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Friends</span>
+                </span>
+            </div>
         );
     }
 
     if (status === 'REQUEST_SENT') {
         return (
-            <button
-                type="button"
-                disabled={loading}
-                onClick={handleCancelRequest}
-                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50 select-none"
-                title="Click to cancel request"
-            >
-                {loading ? 'Cancelling...' : 'Sent'}
-            </button>
+            <div className={containerClasses}>
+                <button
+                    type="button"
+                    disabled={loading}
+                    onClick={handleCancelRequest}
+                    className="w-full py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50 select-none flex items-center justify-center"
+                    title="Click to cancel request"
+                >
+                    {loading ? 'Cancelling...' : 'Sent'}
+                </button>
+            </div>
         );
     }
 
     if (status === 'REQUEST_RECEIVED') {
         return (
-            <span className="px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold select-none">
-                Request Pending
-            </span>
+            <div className={containerClasses}>
+                <span className="w-full py-2 px-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold select-none flex items-center justify-center">
+                    Request Pending
+                </span>
+            </div>
         );
     }
 
     return (
-        <button
-            type="button"
-            disabled={loading}
-            onClick={handleSendRequest}
-            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 select-none"
-        >
-            {loading ? 'Sending...' : 'Add Friend'}
-        </button>
+        <div className={containerClasses}>
+            <button
+                type="button"
+                disabled={loading}
+                onClick={handleSendRequest}
+                className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50 select-none flex items-center justify-center space-x-1.5"
+            >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                <span>{loading ? 'Sending...' : 'Add Friend'}</span>
+            </button>
+        </div>
     );
 });
 

@@ -1,33 +1,47 @@
 // Third Party Libraries
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Firebase
 import { db } from '../firebase/firestore';
 
 export const presenceService = {
-    setOnline: async (uid) => {
+    /**
+     * Sets user status to online atomically.
+     */
+    setUserOnline: async (uid) => {
         if (!uid) return;
         try {
             const userRef = doc(db, 'users', uid);
-            await updateDoc(userRef, {
-                isOnline: true,
-                lastSeen: serverTimestamp(),
-            });
-        } catch (err) {
-            console.error('[presenceService.setOnline]:', err);
+            await setDoc(
+                userRef,
+                {
+                    isOnline: true,
+                    lastSeen: serverTimestamp(),
+                },
+                { merge: true }
+            );
+        } catch (error) {
+            console.error('[presenceService.setUserOnline]:', error);
         }
     },
 
-    setOffline: async (uid) => {
+    /**
+     * Sets user status to offline atomically.
+     */
+    setUserOffline: async (uid) => {
         if (!uid) return;
         try {
             const userRef = doc(db, 'users', uid);
-            await updateDoc(userRef, {
-                isOnline: false,
-                lastSeen: serverTimestamp(),
-            });
-        } catch (err) {
-            console.error('[presenceService.setOffline]:', err);
+            await setDoc(
+                userRef,
+                {
+                    isOnline: false,
+                    lastSeen: serverTimestamp(),
+                },
+                { merge: true }
+            );
+        } catch (error) {
+            console.error('[presenceService.setUserOffline]:', error);
         }
     },
 };

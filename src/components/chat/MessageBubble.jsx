@@ -36,17 +36,17 @@ export const MessageBubble = memo(({
     const isStarred = Boolean(message.isStarred?.[currentUid]);
     const reactionsMap = message.reactions || {};
 
-    // Monotonic Read Receipts
+    // Monotonic Read Receipts - Strictly derived from persisted document status
     const isSeen = Boolean(
         (message.seenBy && recipientUid && message.seenBy.includes(recipientUid)) ||
         message.deliveryStatus === 'read'
     );
 
+    // Recipient presence is intentionally excluded so delivered status is 100% irreversible
     const isDelivered = Boolean(
         isSeen ||
         message.deliveryStatus === 'delivered' ||
-        (message.seenBy && message.seenBy.length > 1) ||
-        recipientIsOnline
+        (message.seenBy && message.seenBy.length > 1)
     );
 
     // Click-Outside & Escape Listener
@@ -145,7 +145,8 @@ export const MessageBubble = memo(({
                 className={`max-w-[75%] sm:max-w-[65%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm transition-all cursor-pointer relative ${isOwn
                         ? 'bg-indigo-600 hover:bg-indigo-500 text-white rounded-tr-xs'
                         : 'bg-slate-800 hover:bg-slate-750 text-slate-100 border border-slate-700/60 rounded-tl-xs'
-                    } ${showMenu ? 'ring-2 ring-indigo-400/50 shadow-indigo-500/20' : ''}`}
+                    } ${showMenu ? 'ring-2 ring-indigo-400/50 shadow-indigo-500/20' : ''
+                    }`}
             >
                 {message.replyTo && (
                     <div

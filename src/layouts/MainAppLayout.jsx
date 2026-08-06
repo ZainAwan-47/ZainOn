@@ -9,6 +9,8 @@ import { useUserSearch } from '../hooks/useUserSearch';
 import { useFriends } from '../hooks/useFriends';
 import { useConversations } from '../hooks/useConversations';
 import { usePresence } from '../hooks/usePresence';
+import { useGlobalDeliveryAck } from '../hooks/useGlobalDeliveryAck';
+
 // Components
 import Avatar from '../components/ui/Avatar';
 import IconButton from '../components/ui/IconButton';
@@ -57,6 +59,9 @@ export const MainAppLayout = () => {
         startConversation,
     } = useConversations() || {};
 
+    // Attach global background delivery receipt engine
+    useGlobalDeliveryAck(user?.uid, conversations);
+
     const handleLogout = async () => {
         try {
             await logout();
@@ -82,7 +87,13 @@ export const MainAppLayout = () => {
 
     const handleViewProfile = (targetUser) => {
         setSelectedPreviewUser(targetUser);
-        closeMobileMenu(); // Automatically close mobile drawer when friend profile is tapped
+        closeMobileMenu();
+    };
+
+    const handleDeleteConversation = (deletedId) => {
+        if (deletedId === activeConversationId) {
+            setActiveConversationId(null);
+        }
     };
 
     const isSearchActive = Boolean(searchQuery.trim());
@@ -227,6 +238,7 @@ export const MainAppLayout = () => {
                                 closeMobileMenu();
                                 navigate('/chat');
                             }}
+                            onDeleteConversation={handleDeleteConversation}
                         />
                     ) : (
                         <div className="p-3 text-xs text-slate-400 text-center">Group channels coming soon</div>
@@ -326,7 +338,6 @@ export const MainAppLayout = () => {
                 </header>
 
                 <main className="flex-1 flex flex-col min-h-0 relative h-full">
-                    {/* Hosted strictly inside the main workspace canvas to prevent sidebar overlaps */}
                     {selectedPreviewUser && (
                         <ProfilePreviewModal
                             targetUser={selectedPreviewUser}

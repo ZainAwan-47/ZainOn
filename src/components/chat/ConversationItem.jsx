@@ -26,7 +26,7 @@ export const ConversationItem = memo(({
     const [isFriend, setIsFriend] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    // Direct, safe listener on the user's OWN friends subcollection
+    // Direct listener on user's own friends subcollection
     useEffect(() => {
         if (!user?.uid || !otherUser?.uid) return () => { };
 
@@ -37,7 +37,6 @@ export const ConversationItem = memo(({
                 setIsFriend(snap.exists());
             },
             (error) => {
-                // Fallback gracefully without crashing console
                 console.warn('[ConversationItem.isFriendCheck]:', error.message);
             }
         );
@@ -61,16 +60,21 @@ export const ConversationItem = memo(({
         }
     }
 
+    // Soft delete chat handler
     const handleDeleteChat = async () => {
-        if (!conversation.id) return;
+        if (!conversation.id || !user?.uid) return;
         try {
-            await conversationService.deleteConversationAndMessages(conversation.id);
-            showToast('Conversation deleted', 'info');
+            await conversationService.hideConversationForUser(conversation.id, user.uid);
+            showToast('Conversation removed from your chats', 'info');
             setShowDeleteModal(false);
-            if (onDeleted) onDeleted(conversation.id);
+
+            // Notify parent to reset activeConversationId if this chat was open
+            if (onDeleted) {
+                onDeleted(conversation.id);
+            }
         } catch (error) {
             console.error('[handleDeleteChat]:', error);
-            showToast('Failed to delete conversation. Check permissions.', 'error');
+            showToast('Failed to remove conversation.', 'error');
         }
     };
 
@@ -98,6 +102,7 @@ export const ConversationItem = memo(({
                 />
 
                 <div className="flex-1 min-w-0">
+                    {/* Header Row: Participant Name & Time */}
                     <div className="flex items-center justify-between mb-1">
                         <span
                             className={`text-xs font-bold truncate transition-colors ${isActive ? 'text-indigo-300' : 'text-white group-hover:text-indigo-300'
@@ -112,8 +117,9 @@ export const ConversationItem = memo(({
                         )}
                     </div>
 
-                    <div className="flex items-center justify-between">
-                        <p className="text-xs text-slate-400 truncate pr-2">
+                    {/* Bottom Row: Text Preview & Controls Group */}
+                    <div className="flex items-center justify-between gap-2 min-w-0">
+                        <p className="text-xs text-slate-400 truncate flex-1 min-w-0">
                             {lastMessage?.text ? (
                                 <>
                                     {isOwnLastMessage && (
@@ -126,28 +132,30 @@ export const ConversationItem = memo(({
                             )}
                         </p>
 
-                        {unreadCount > 0 && (
-                            <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-[10px] text-white font-extrabold shrink-0 shadow-sm animate-pulse">
-                                {unreadCount}
-                            </span>
-                        )}
+                        {/* Unread Badge & Remove Button */}
+                        <div className="flex items-center space-x-1.5 shrink-0">
+                            {unreadCount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-[10px] text-white font-extrabold shrink-0 shadow-sm animate-pulse">
+                                    {unreadCount}
+                                </span>
+                            )}
 
-                        {/* Remove Chat Button (✕) rendered strictly for non-friends */}
-                        {!isFriend && (
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowDeleteModal(true);
-                                }}
-                                className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all ml-1 cursor-pointer shrink-0"
-                                title="Remove Conversation"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        )}
+                            {!isFriend && (
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeleteModal(true);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer shrink-0"
+                                    title="Remove Conversation"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>

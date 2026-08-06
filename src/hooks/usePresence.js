@@ -8,29 +8,34 @@ export const usePresence = (uid) => {
     useEffect(() => {
         if (!uid) return;
 
-        presenceService.setOnline(uid);
+        // Set online immediately on mount
+        presenceService.setUserOnline(uid);
 
+        // 30-second presence heartbeat
+        const heartbeatInterval = setInterval(() => {
+            presenceService.setUserOnline(uid);
+        }, 30000);
+
+        // Tab visibility changes
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'hidden') {
-                presenceService.setOffline(uid);
-            } else if (document.visibilityState === 'visible') {
-                presenceService.setOnline(uid);
+            if (document.visibilityState === 'visible') {
+                presenceService.setUserOnline(uid);
             }
         };
 
-        const handleUnload = () => {
-            presenceService.setOffline(uid);
+        // Window unload listener
+        const handleBeforeUnload = () => {
+            presenceService.setUserOffline(uid);
         };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('pagehide', handleUnload);
-        window.addEventListener('beforeunload', handleUnload);
+        window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
+            clearInterval(heartbeatInterval);
             window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('pagehide', handleUnload);
-            window.removeEventListener('beforeunload', handleUnload);
-            presenceService.setOffline(uid);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            presenceService.setUserOffline(uid);
         };
     }, [uid]);
 };

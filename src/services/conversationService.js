@@ -6,6 +6,9 @@ import {
     getDocs,
     setDoc,
     deleteDoc,
+    updateDoc,
+    arrayUnion,
+    arrayRemove,
     onSnapshot,
     serverTimestamp,
     query,
@@ -42,7 +45,10 @@ export const conversationService = {
                 await setDoc(convRef, {
                     id: conversationId,
                     type: 'direct',
+                    createdBy: currentUser.uid,
                     participantIds,
+                    hiddenFor: [],
+                    clearedAt: {},
                     participants: {
                         [currentUser.uid]: {
                             uid: currentUser.uid,
@@ -66,6 +72,21 @@ export const conversationService = {
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                 });
+            } else {
+                const data = convSnap.data();
+                const updates = {};
+
+                if (data.hiddenFor?.includes(currentUser.uid)) {
+                    updates.hiddenFor = arrayRemove(currentUser.uid);
+                }
+
+                if (!data.lastMessage && data.createdBy !== currentUser.uid) {
+                    updates.createdBy = currentUser.uid;
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    await updateDoc(convRef, updates);
+                }
             }
 
             return conversationId;
@@ -75,10 +96,6 @@ export const conversationService = {
         }
     },
 
-    /**
-     * Realtime conversation subscriber.
-     * Preserves raw unreadCounts across presence/profile snapshot emissions.
-     */
     subscribeToUserConversations: (currentUid, callback) => {
         if (!currentUid) return () => { };
 
@@ -103,7 +120,6 @@ export const conversationService = {
                     return;
                 }
 
-                // 1. Store raw snapshot documents
                 rawConversationsMap.clear();
                 snapshot.docs.forEach((docSnap) => {
                     rawConversationsMap.set(docSnap.id, docSnap.data());
@@ -114,37 +130,61 @@ export const conversationService = {
                     const staticOtherProfile = rawConv.participants?.[otherUid] || null;
                     const liveProfile = cachedUserProfiles.get(otherUid);
 
+                    const userClearedAt = rawConv.clearedAt?.[currentUid]?.toMillis?.() || 0;
+                    const lastMsgTime = rawConv.lastMessage?.createdAt?.toMillis?.() || 0;
+
+                    const effectiveLastMessage =
+                        userClearedAt > 0 && lastMsgTime > 0 && lastMsgTime <= userClearedAt
+                            ? null
+                            : rawConv.lastMessage;
+
                     const otherParticipant = staticOtherProfile
                         ? {
                             uid: staticOtherProfile.uid,
                             fullName: liveProfile?.fullName || staticOtherProfile.fullName || 'User',
                             username: liveProfile?.username || staticOtherProfile.username || 'user',
                             photoURL: liveProfile?.photoURL || staticOtherProfile.photoURL || '',
-                            isOnline: liveProfile !== undefined ? Boolean(liveProfile.isOnline) : Boolean(staticOtherProfile.isOnline),
+                            isOnline:
+                                liveProfile !== undefined
+                                    ? Boolean(liveProfile.isOnline)
+                                    : Boolean(staticOtherProfile.isOnline),
                             lastSeen: liveProfile?.lastSeen || staticOtherProfile.lastSeen || null,
                         }
                         : null;
 
                     return {
                         ...rawConv,
+                        lastMessage: effectiveLastMessage,
                         otherParticipant,
                         unreadCount: rawConv.unreadCounts?.[currentUid] || 0,
                     };
                 };
 
                 const sortAndDeliver = () => {
-                    const hydratedList = Array.from(rawConversationsMap.values()).map(buildHydratedConversation);
+                    const hydratedList = Array.from(rawConversationsMap.values())
+                        .filter((rawConv) => {
+                            if (rawConv.hiddenFor?.includes(currentUid)) {
+                                return false;
+                            }
+
+                            if (!rawConv.lastMessage && rawConv.createdBy && rawConv.createdBy !== currentUid) {
+                                return false;
+                            }
+
+                            return true;
+                        })
+                        .map(buildHydratedConversation);
+
                     const sortedList = hydratedList.sort((a, b) => {
                         const timeA = a.lastActivity?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
                         const timeB = b.lastActivity?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
                         return timeB - timeA;
                     });
+
                     callback(sortedList);
                 };
 
-                sortAndDeliver();
-
-                // 2. Attach live user presence listeners
+                // Attach live presence listeners for all conversation partners
                 snapshot.docs.forEach((docSnap) => {
                     const conv = docSnap.data();
                     const otherUid = conv.participantIds?.find((id) => id !== currentUid);
@@ -164,7 +204,6 @@ export const conversationService = {
                                         lastSeen: liveUserData.lastSeen || null,
                                     });
 
-                                    // Re-hydrate strictly from raw snapshot map so unreadCounts are never wiped
                                     sortAndDeliver();
                                 }
                             },
@@ -174,6 +213,8 @@ export const conversationService = {
                         activeProfileListeners.set(otherUid, unsubProfile);
                     }
                 });
+
+                sortAndDeliver();
             },
             (error) => {
                 console.error('[conversationService.subscribeToUserConversations]:', error);
@@ -188,6 +229,21 @@ export const conversationService = {
             cachedUserProfiles.clear();
             rawConversationsMap.clear();
         };
+    },
+
+    hideConversationForUser: async (conversationId, currentUid) => {
+        if (!conversationId || !currentUid) return;
+
+        try {
+            const convRef = doc(db, 'conversations', conversationId);
+            await updateDoc(convRef, {
+                hiddenFor: arrayUnion(currentUid),
+                [`clearedAt.${currentUid}`]: serverTimestamp(),
+            });
+        } catch (error) {
+            console.error('[conversationService.hideConversationForUser]:', error);
+            throw error;
+        }
     },
 
     deleteConversationAndMessages: async (conversationId) => {
