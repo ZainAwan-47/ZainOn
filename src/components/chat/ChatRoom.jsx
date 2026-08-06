@@ -1,19 +1,32 @@
 // React
-import React, { useRef, useEffect, useLayoutEffect, useState, useCallback, memo } from 'react';
+import React, {
+    useRef,
+    useEffect,
+    useLayoutEffect,
+    useState,
+    useCallback,
+    memo,
+} from 'react';
 
 // Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
 import { messageService } from '../../services/messageService';
-import { getDateSeparatorLabel, shouldShowDateSeparator } from '../../utils/dateFormatter';
+import {
+    getDateSeparatorLabel,
+    shouldShowDateSeparator,
+} from '../../utils/dateFormatter';
 
 // Components
 import ChatHeader from './ChatHeader';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
+import GroupProfileModal from '../groups/GroupProfileModal';
 
 export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const { user } = useAuth();
+
+    const isGroup = conversation?.type === 'group';
     const otherParticipant = conversation?.otherParticipant || {};
 
     // Refs
@@ -26,10 +39,11 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const ackedSeenIdsRef = useRef(new Set());
 
     const [replyingTo, setReplyingTo] = useState(null);
+    const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
 
     const { messages, loading, sendMessage } = useMessages(
         conversation?.id,
-        otherParticipant.uid
+        isGroup ? undefined : otherParticipant.uid
     );
 
     const handleScroll = useCallback(() => {
@@ -41,16 +55,16 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const scrollToBottom = useCallback((instant = false) => {
         if (!chatContainerRef.current) return;
         const container = chatContainerRef.current;
-
         container.scrollTo({
             top: container.scrollHeight,
             behavior: instant ? 'auto' : 'smooth',
         });
     }, []);
 
-    // REALTIME ACKNOWLEDGEMENTS (Isolates presence changes from wiping unread badges)
+    // REALTIME ACKNOWLEDGEMENTS (1-on-1 direct chats only)
     useEffect(() => {
-        if (!conversation?.id || !user?.uid || messages.length === 0) return;
+        if (!conversation?.id || !user?.uid || messages.length === 0 || isGroup)
+            return;
 
         // 1. Delivery Ack (Gray -> Orange)
         const unackedDelivered = messages.filter(
@@ -59,26 +73,23 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 m.deliveryStatus === 'sent' &&
                 !ackedDeliveredIdsRef.current.has(m.id)
         );
-
         if (unackedDelivered.length > 0) {
             unackedDelivered.forEach((m) => ackedDeliveredIdsRef.current.add(m.id));
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered);
         }
 
         // 2. Seen Ack (Orange -> Green)
-        // Executes ONLY when this ChatRoom component is actively mounted/viewed by current user
         const unackedSeen = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
                 (!m.seenBy || !m.seenBy.includes(user.uid)) &&
                 !ackedSeenIdsRef.current.has(m.id)
         );
-
         if (unackedSeen.length > 0) {
             unackedSeen.forEach((m) => ackedSeenIdsRef.current.add(m.id));
             messageService.markAsSeen(conversation.id, user.uid, unackedSeen);
         }
-    }, [conversation?.id, user?.uid, messages]); // presence (isOnline) intentionally excluded!
+    }, [conversation?.id, user?.uid, messages, isGroup]);
 
     // Initial mount scroll
     useLayoutEffect(() => {
@@ -92,7 +103,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         if (messages.length > prevMessagesLengthRef.current) {
             const lastMsg = messages[messages.length - 1];
             const isOwnMsg = lastMsg?.senderId === user?.uid;
-
             if (isOwnMsg || isNearBottomRef.current) {
                 requestAnimationFrame(() => {
                     scrollToBottom(false);
@@ -166,24 +176,49 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 senderName:
                     targetMsg.senderId === user?.uid
                         ? 'You'
-                        : otherParticipant.fullName,
+                        : isGroup
+                            ? conversation.participants?.[targetMsg.senderId]?.fullName || 'Member'
+                            : otherParticipant.fullName,
             });
         },
-        [user?.uid, otherParticipant.fullName]
+        [user?.uid, isGroup, conversation?.participants, otherParticipant.fullName]
+    );
+
+    const handleProfileViewTrigger = useCallback(
+        (target) => {
+            if (isGroup) {
+                setIsGroupProfileOpen(true);
+            } else if (onViewProfile) {
+                onViewProfile(target);
+            }
+        },
+        [isGroup, onViewProfile]
     );
 
     if (!conversation) return null;
 
     return (
-        <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 overflow-hidden">
+        <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 overflow-hidden relative">
+            {/* Group Profile Info Modal */}
+            {isGroup && isGroupProfileOpen && (
+                <GroupProfileModal
+                    group={conversation}
+                    isOpen={isGroupProfileOpen}
+                    onClose={() => setIsGroupProfileOpen(false)}
+                />
+            )}
+
+            {/* Header */}
             <ChatHeader
+                conversation={conversation}
                 participant={otherParticipant}
                 pinnedMessage={conversation.pinnedMessage}
                 onUnpin={handleUnpinHeader}
-                onViewProfile={onViewProfile}
+                onViewProfile={handleProfileViewTrigger}
                 onCloseChat={onCloseChat}
             />
 
+            {/* Message Area Canvas */}
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
@@ -196,18 +231,35 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-2 select-none">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 mb-1">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                        </div>
-                        <span className="text-xs font-bold text-slate-300">No Messages Yet</span>
-                        <p className="text-[11px] text-slate-400 leading-normal max-w-[220px]">
-                            Send a message to start chatting with{' '}
-                            <span className="text-white font-semibold">
-                                {otherParticipant.fullName || 'your friend'}
-                            </span>.
-                        </p>
+                        {isGroup ? (
+                            <>
+                                <div className="w-14 h-14 rounded-3xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner mb-1">
+                                    <span className="text-2xl font-black">#</span>
+                                </div>
+                                <span className="text-xs font-bold text-white">
+                                    Welcome to {conversation.name || 'Group Workspace'}!
+                                </span>
+                                <p className="text-[11px] text-slate-400 leading-normal max-w-[260px]">
+                                    This is the beginning of the{' '}
+                                    <span className="text-indigo-400 font-semibold">{conversation.name}</span> group space.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 mb-1">
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                </div>
+                                <span className="text-xs font-bold text-slate-300">No Messages Yet</span>
+                                <p className="text-[11px] text-slate-400 leading-normal max-w-[220px]">
+                                    Send a message to start chatting with{' '}
+                                    <span className="text-white font-semibold">
+                                        {otherParticipant.fullName || 'your friend'}
+                                    </span>.
+                                </p>
+                            </>
+                        )}
                     </div>
                 ) : (
                     messages.map((msg, index) => {
@@ -224,12 +276,11 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                         </span>
                                     </div>
                                 )}
-
                                 <MessageBubble
                                     message={msg}
                                     isOwn={msg.senderId === user?.uid}
-                                    recipientIsOnline={otherParticipant.isOnline}
-                                    recipientUid={otherParticipant.uid}
+                                    recipientIsOnline={isGroup ? false : otherParticipant.isOnline}
+                                    recipientUid={isGroup ? '' : otherParticipant.uid}
                                     currentUid={user?.uid}
                                     onReact={handleToggleReaction}
                                     onReply={handleSetReply}

@@ -89,20 +89,18 @@ export const authService = {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            if (!user.emailVerified) {
-                await signOut(auth);
-                throw new Error('Please verify your email before signing in.');
-            }
+            // Removed emailVerified check here. ProtectedRoute handles the redirection to VerifyEmailPage.
 
             // Automatically flag user online in Firestore
-            await presenceService.setOnline(user.uid);
+            try {
+                await presenceService.setOnline(user.uid);
+            } catch (presenceErr) {
+                console.warn('[authService.login] Non-critical presence update failed:', presenceErr);
+            }
 
             return userCredential;
         } catch (error) {
             console.error('[authService.login]:', error.code || error.message);
-            if (error.message === 'Please verify your email before signing in.') {
-                throw error;
-            }
             const friendlyMessage = formatAuthError(error.code);
             throw new Error(friendlyMessage);
         }
@@ -229,14 +227,16 @@ export const authService = {
     logout: async () => {
         try {
             if (auth.currentUser) {
-                // Automatically flag user offline in Firestore prior to signout
-                await presenceService.setOffline(auth.currentUser.uid);
+                try {
+                    await presenceService.setOffline(auth.currentUser.uid);
+                } catch (presenceErr) {
+                    console.warn('[authService.logout]: Non-critical presence update failed:', presenceErr);
+                }
             }
             await signOut(auth);
         } catch (error) {
             console.error('[authService.logout]:', error.code || error.message);
-            const friendlyMessage = formatAuthError(error.code);
-            throw new Error(friendlyMessage);
+            await signOut(auth).catch(() => { });
         }
     },
 };

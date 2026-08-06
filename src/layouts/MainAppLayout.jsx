@@ -1,7 +1,7 @@
 // React
 import React, { useState, useContext } from 'react';
-// Third Party Libraries
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+
 // Context & Hooks
 import { ThemeContext } from '../context/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
@@ -9,7 +9,9 @@ import { useUserSearch } from '../hooks/useUserSearch';
 import { useFriends } from '../hooks/useFriends';
 import { useConversations } from '../hooks/useConversations';
 import { usePresence } from '../hooks/usePresence';
+import { useGroups } from '../hooks/useGroups';
 import { useGlobalDeliveryAck } from '../hooks/useGlobalDeliveryAck';
+import { useToast } from '../context/ToastContext';
 
 // Components
 import Avatar from '../components/ui/Avatar';
@@ -19,21 +21,21 @@ import FriendsList from '../components/friends/FriendsList';
 import FriendRequestsTab from '../components/friends/FriendRequestsTab';
 import ConversationList from '../components/chat/ConversationList';
 import ProfilePreviewModal from '../components/friends/ProfilePreviewModal';
+import GroupsTab from '../components/groups/GroupsTab';
 
 export const MainAppLayout = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const themeContext = useContext(ThemeContext);
+    const { showToast } = useToast();
 
-    // Activate presence tracking for logged-in user
     usePresence(user?.uid);
 
-    // Tab & Menu State
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    // Tab State: 'chats' | 'groups' | 'friends' | 'requests'
     const [activeTab, setActiveTab] = useState('chats');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [selectedPreviewUser, setSelectedPreviewUser] = useState(null);
 
-    // Hooks
     const {
         searchQuery = '',
         setSearchQuery,
@@ -59,15 +61,29 @@ export const MainAppLayout = () => {
         startConversation,
     } = useConversations() || {};
 
-    // Attach global background delivery receipt engine
+    const { groups = [], loading: groupsLoading } = useGroups() || {};
+
     useGlobalDeliveryAck(user?.uid, conversations);
 
+    // --- FIX: Smooth Logout Handler ---
     const handleLogout = async () => {
         try {
+            // 1. Wipe chat memory
+            localStorage.removeItem('zainon_active_conversation_id');
+            // 2. Call our newly bulletproofed logout function
             await logout();
-            navigate('/login');
         } catch (error) {
-            console.error('[MainAppLayout] Logout failed:', error);
+            console.warn('[MainAppLayout] Handled non-critical logout exception:', error);
+        } finally {
+            // 3. Smoothly navigate via React Router so Firebase isn't interrupted
+            navigate('/login', { replace: true });
+        }
+    };
+
+    const handleThemeToggle = () => {
+        if (themeContext && themeContext.toggleTheme) {
+            themeContext.toggleTheme();
+            showToast('Theme switched! Note: Implement "dark:" Tailwind classes in your UI for visual changes to apply.', 'info');
         }
     };
 
@@ -100,7 +116,6 @@ export const MainAppLayout = () => {
 
     return (
         <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-slate-900 text-slate-100 font-sans flex select-none">
-            {/* Mobile Drawer Overlay */}
             {isMobileMenuOpen && (
                 <div
                     onClick={closeMobileMenu}
@@ -109,11 +124,9 @@ export const MainAppLayout = () => {
                 />
             )}
 
-            {/* 336px Sidebar Navigation Panel */}
-            <aside
-                className={`fixed md:static inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-slate-900 border-r border-slate-800/90 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-                    }`}
-            >
+            {/* Sidebar Panel */}
+            <aside className={`fixed md:static inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-slate-900 border-r border-slate-800/90 flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+
                 {/* Brand Header */}
                 <div className="h-[72px] px-5 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-900/90 backdrop-blur-md">
                     <div className="flex items-center space-x-3.5">
@@ -136,7 +149,7 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* Global Search Input Bar */}
+                {/* Global Search */}
                 <div className="p-3.5 border-b border-slate-800/60 shrink-0">
                     <div className="relative flex items-center">
                         <svg className="w-4 h-4 absolute left-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,38 +176,20 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* Sidebar Navigation Tabs */}
+                {/* Navigation Tabs */}
                 {!isSearchActive && (
-                    <div className="px-3 py-2 flex items-center space-x-1 border-b border-slate-800/80 shrink-0 bg-slate-900/60">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('chats')}
-                            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'chats'
-                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                                }`}
-                        >
+                    <div className="px-2 py-2 flex items-center space-x-1 border-b border-slate-800/80 shrink-0 bg-slate-900/60">
+                        <button type="button" onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all ${activeTab === 'chats' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'}`}>
                             Chats
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('friends')}
-                            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'friends'
-                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                                }`}
-                        >
+                        <button type="button" onClick={() => setActiveTab('groups')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all ${activeTab === 'groups' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'}`}>
+                            Groups
+                        </button>
+                        <button type="button" onClick={() => setActiveTab('friends')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all ${activeTab === 'friends' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'}`}>
                             Friends
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('requests')}
-                            className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-bold transition-all relative ${activeTab === 'requests'
-                                ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                                }`}
-                        >
-                            Requests
+                        <button type="button" onClick={() => setActiveTab('requests')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all relative ${activeTab === 'requests' ? 'bg-slate-800 text-indigo-400 ring-1 ring-slate-700/50' : 'text-slate-400 hover:text-white hover:bg-slate-800/40'}`}>
+                            Reqs
                             {(incomingRequests?.length || 0) > 0 && (
                                 <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 text-[9px] text-white font-extrabold flex items-center justify-center shadow-md animate-pulse">
                                     {incomingRequests.length}
@@ -204,7 +199,7 @@ export const MainAppLayout = () => {
                     </div>
                 )}
 
-                {/* Dynamic Sidebar Content Body */}
+                {/* Dynamic Body Content */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                     {isSearchActive ? (
                         <UserSearchResults
@@ -213,6 +208,17 @@ export const MainAppLayout = () => {
                             error={searchError}
                             searchQuery={searchQuery}
                             onViewProfile={handleViewProfile}
+                        />
+                    ) : activeTab === 'groups' ? (
+                        <GroupsTab
+                            groups={groups}
+                            loading={groupsLoading}
+                            activeGroupId={activeConversationId}
+                            onSelectGroup={(groupId) => {
+                                setActiveConversationId(groupId);
+                                closeMobileMenu();
+                                navigate('/chat');
+                            }}
                         />
                     ) : activeTab === 'friends' ? (
                         <FriendsList
@@ -228,7 +234,7 @@ export const MainAppLayout = () => {
                             }
                             onDecline={declineRequest}
                         />
-                    ) : activeTab === 'chats' ? (
+                    ) : (
                         <ConversationList
                             conversations={conversations}
                             loading={conversationsLoading}
@@ -240,70 +246,28 @@ export const MainAppLayout = () => {
                             }}
                             onDeleteConversation={handleDeleteConversation}
                         />
-                    ) : (
-                        <div className="p-3 text-xs text-slate-400 text-center">Group channels coming soon</div>
                     )}
                 </div>
 
-                {/* Quick Action Bar */}
+                {/* Footer Navbar */}
                 <div className="px-3.5 py-2 flex items-center space-x-1 bg-slate-900/60 border-t border-slate-800/80 shrink-0">
-                    <NavLink
-                        to="/chat"
-                        onClick={closeMobileMenu}
-                        className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'
-                            }`
-                        }
-                    >
-                        Chat
-                    </NavLink>
-                    <NavLink
-                        to="/profile"
-                        onClick={closeMobileMenu}
-                        className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'
-                            }`
-                        }
-                    >
-                        Profile
-                    </NavLink>
-                    <NavLink
-                        to="/settings"
-                        onClick={closeMobileMenu}
-                        className={({ isActive }) =>
-                            `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'
-                            }`
-                        }
-                    >
-                        Settings
-                    </NavLink>
+                    <NavLink to="/chat" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'}`}>Chat</NavLink>
+                    <NavLink to="/profile" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'}`}>Profile</NavLink>
+                    <NavLink to="/settings" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-indigo-400 bg-slate-800/80' : 'text-slate-400 hover:text-white'}`}>Settings</NavLink>
                 </div>
 
-                {/* Current User Card */}
+                {/* User Status Bar */}
                 <div className="h-[72px] px-4 border-t border-slate-800/90 bg-slate-900/95 backdrop-blur-md flex items-center justify-between shrink-0">
                     <div className="flex items-center space-x-3 min-w-0 pr-2">
-                        <Avatar
-                            src={user?.photoURL}
-                            name={user?.fullName || user?.displayName || 'User'}
-                            size="md"
-                            isOnline={user?.isOnline ?? true}
-                        />
+                        <Avatar src={user?.photoURL} name={user?.fullName || user?.displayName || 'User'} size="md" isOnline={user?.isOnline ?? true} />
                         <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-white truncate">
-                                {user?.fullName || user?.displayName || 'Zainon User'}
-                            </span>
-                            <span className="text-[10px] font-medium text-slate-400 truncate">
-                                @{user?.username || 'user'}
-                            </span>
+                            <span className="text-xs font-bold text-white truncate">{user?.fullName || user?.displayName || 'Zainon User'}</span>
+                            <span className="text-[10px] font-medium text-slate-400 truncate">@{user?.username || 'user'}</span>
                         </div>
                     </div>
                     <div className="flex items-center space-x-1 shrink-0">
                         {themeContext && (
-                            <IconButton
-                                onClick={() => themeContext.toggleTheme && themeContext.toggleTheme()}
-                                title="Toggle Theme"
-                                size="sm"
-                            >
+                            <IconButton onClick={handleThemeToggle} title="Toggle Theme" size="sm">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                                 </svg>
@@ -318,32 +282,28 @@ export const MainAppLayout = () => {
                 </div>
             </aside>
 
-            {/* Main Workspace Canvas */}
+            {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-950 transition-colors h-full relative">
                 <header className="md:hidden h-14 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-900 shrink-0">
                     <div className="flex items-center space-x-3">
                         <IconButton onClick={toggleMobileMenu} title="Open sidebar">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                         </IconButton>
                         <span className="text-base font-bold text-white">ZainOn</span>
                     </div>
-                    <Avatar
-                        src={user?.photoURL}
-                        name={user?.fullName || user?.displayName || 'User'}
-                        size="sm"
-                        isOnline={user?.isOnline ?? true}
-                    />
+                    <div className="flex items-center space-x-2">
+                        <Avatar src={user?.photoURL} name={user?.fullName || user?.displayName || 'User'} size="sm" isOnline={user?.isOnline ?? true} />
+                        <IconButton onClick={handleLogout} title="Sign Out" variant="danger" size="sm">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </IconButton>
+                    </div>
                 </header>
 
                 <main className="flex-1 flex flex-col min-h-0 relative h-full">
                     {selectedPreviewUser && (
-                        <ProfilePreviewModal
-                            targetUser={selectedPreviewUser}
-                            onClose={() => setSelectedPreviewUser(null)}
-                            onStartChat={handleStartChatFromProfile}
-                        />
+                        <ProfilePreviewModal targetUser={selectedPreviewUser} onClose={() => setSelectedPreviewUser(null)} onStartChat={handleStartChatFromProfile} />
                     )}
 
                     <Outlet

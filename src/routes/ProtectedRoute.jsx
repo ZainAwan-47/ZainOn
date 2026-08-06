@@ -1,26 +1,31 @@
-// src/routes/ProtectedRoute.jsx
-import React, { useContext } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
+import React from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 export const ProtectedRoute = () => {
-    const authContext = useContext(AuthContext);
+    const { user, loading } = useAuth();
+    const location = useLocation();
 
-    if (!authContext || authContext.loading) {
+    // 1. Wait for Firebase to determine auth state
+    if (loading) {
         return (
-            <div className="fixed inset-0 h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 font-sans z-50 select-none">
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Authenticating...
-                </p>
+            <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center">
+                <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
-    if (!authContext.isAuthenticated) {
-        return <Navigate to="/login" replace />;
+    // 2. Unauthenticated -> Kick to Login
+    if (!user) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
+    // 3. Authenticated but Email NOT Verified -> Quarantine to Verify Page
+    if (user.emailVerified === false) {
+        return <Navigate to="/verify-email" replace />;
+    }
+
+    // 4. Fully Authenticated & Verified -> Grant Access to MainAppLayout
     return <Outlet />;
 };
 

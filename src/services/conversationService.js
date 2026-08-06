@@ -47,6 +47,7 @@ export const conversationService = {
                     type: 'direct',
                     createdBy: currentUser.uid,
                     participantIds,
+                    members: participantIds,
                     hiddenFor: [],
                     clearedAt: {},
                     participants: {
@@ -78,10 +79,6 @@ export const conversationService = {
 
                 if (data.hiddenFor?.includes(currentUser.uid)) {
                     updates.hiddenFor = arrayRemove(currentUser.uid);
-                }
-
-                if (!data.lastMessage && data.createdBy !== currentUser.uid) {
-                    updates.createdBy = currentUser.uid;
                 }
 
                 if (Object.keys(updates).length > 0) {
@@ -122,14 +119,15 @@ export const conversationService = {
 
                 rawConversationsMap.clear();
                 snapshot.docs.forEach((docSnap) => {
-                    rawConversationsMap.set(docSnap.id, docSnap.data());
+                    // EXPLICITLY attach id: docSnap.id to ensure ID is never undefined
+                    rawConversationsMap.set(docSnap.id, {
+                        id: docSnap.id,
+                        ...docSnap.data(),
+                    });
                 });
 
                 const buildHydratedConversation = (rawConv) => {
-                    const otherUid = rawConv.participantIds?.find((id) => id !== currentUid);
-                    const staticOtherProfile = rawConv.participants?.[otherUid] || null;
-                    const liveProfile = cachedUserProfiles.get(otherUid);
-
+                    const isGroup = rawConv.type === 'group';
                     const userClearedAt = rawConv.clearedAt?.[currentUid]?.toMillis?.() || 0;
                     const lastMsgTime = rawConv.lastMessage?.createdAt?.toMillis?.() || 0;
 
@@ -137,6 +135,25 @@ export const conversationService = {
                         userClearedAt > 0 && lastMsgTime > 0 && lastMsgTime <= userClearedAt
                             ? null
                             : rawConv.lastMessage;
+
+                    // Polymorphic Hydration
+                    if (isGroup) {
+                        return {
+                            ...rawConv,
+                            id: rawConv.id || rawConv.groupId,
+                            groupId: rawConv.groupId || rawConv.id,
+                            type: 'group',
+                            name: rawConv.name || 'Group Workspace',
+                            avatar: rawConv.avatar || '',
+                            memberCount: rawConv.memberCount || rawConv.members?.length || 0,
+                            lastMessage: effectiveLastMessage,
+                            unreadCount: rawConv.unreadCounts?.[currentUid] || 0,
+                        };
+                    }
+
+                    const otherUid = rawConv.participantIds?.find((id) => id !== currentUid);
+                    const staticOtherProfile = rawConv.participants?.[otherUid] || null;
+                    const liveProfile = cachedUserProfiles.get(otherUid);
 
                     const otherParticipant = staticOtherProfile
                         ? {
@@ -154,6 +171,7 @@ export const conversationService = {
 
                     return {
                         ...rawConv,
+                        type: 'direct',
                         lastMessage: effectiveLastMessage,
                         otherParticipant,
                         unreadCount: rawConv.unreadCounts?.[currentUid] || 0,
@@ -166,11 +184,15 @@ export const conversationService = {
                             if (rawConv.hiddenFor?.includes(currentUid)) {
                                 return false;
                             }
-
-                            if (!rawConv.lastMessage && rawConv.createdBy && rawConv.createdBy !== currentUid) {
+                            // Do NOT filter out empty group conversations
+                            if (
+                                rawConv.type !== 'group' &&
+                                !rawConv.lastMessage &&
+                                rawConv.createdBy &&
+                                rawConv.createdBy !== currentUid
+                            ) {
                                 return false;
                             }
-
                             return true;
                         })
                         .map(buildHydratedConversation);
@@ -184,33 +206,35 @@ export const conversationService = {
                     callback(sortedList);
                 };
 
-                // Attach live presence listeners for all conversation partners
+                // Attach presence listeners ONLY for 1-on-1 direct conversations
                 snapshot.docs.forEach((docSnap) => {
                     const conv = docSnap.data();
-                    const otherUid = conv.participantIds?.find((id) => id !== currentUid);
-                    if (otherUid && !activeProfileListeners.has(otherUid)) {
-                        const otherUserRef = doc(db, 'users', otherUid);
-                        const unsubProfile = onSnapshot(
-                            otherUserRef,
-                            (userSnap) => {
-                                if (userSnap.exists()) {
-                                    const liveUserData = userSnap.data();
-                                    cachedUserProfiles.set(otherUid, {
-                                        uid: liveUserData.uid,
-                                        fullName: liveUserData.fullName || 'User',
-                                        username: liveUserData.username || 'user',
-                                        photoURL: liveUserData.photoURL || '',
-                                        isOnline: Boolean(liveUserData.isOnline),
-                                        lastSeen: liveUserData.lastSeen || null,
-                                    });
+                    if (conv.type !== 'group') {
+                        const otherUid = conv.participantIds?.find((id) => id !== currentUid);
+                        if (otherUid && !activeProfileListeners.has(otherUid)) {
+                            const otherUserRef = doc(db, 'users', otherUid);
+                            const unsubProfile = onSnapshot(
+                                otherUserRef,
+                                (userSnap) => {
+                                    if (userSnap.exists()) {
+                                        const liveUserData = userSnap.data();
+                                        cachedUserProfiles.set(otherUid, {
+                                            uid: liveUserData.uid,
+                                            fullName: liveUserData.fullName || 'User',
+                                            username: liveUserData.username || 'user',
+                                            photoURL: liveUserData.photoURL || '',
+                                            isOnline: Boolean(liveUserData.isOnline),
+                                            lastSeen: liveUserData.lastSeen || null,
+                                        });
 
-                                    sortAndDeliver();
-                                }
-                            },
-                            (err) => console.warn('[subscribeToUserConversations.profile]:', err.message)
-                        );
+                                        sortAndDeliver();
+                                    }
+                                },
+                                (err) => console.warn('[subscribeToUserConversations.profile]:', err.message)
+                            );
 
-                        activeProfileListeners.set(otherUid, unsubProfile);
+                            activeProfileListeners.set(otherUid, unsubProfile);
+                        }
                     }
                 });
 
@@ -233,7 +257,6 @@ export const conversationService = {
 
     hideConversationForUser: async (conversationId, currentUid) => {
         if (!conversationId || !currentUid) return;
-
         try {
             const convRef = doc(db, 'conversations', conversationId);
             await updateDoc(convRef, {
@@ -248,7 +271,6 @@ export const conversationService = {
 
     deleteConversationAndMessages: async (conversationId) => {
         if (!conversationId) return;
-
         try {
             const messagesRef = collection(db, 'conversations', conversationId, 'messages');
             const messagesSnap = await getDocs(messagesRef);

@@ -35,11 +35,7 @@ export const LoginPage = () => {
 
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-    const [isResending, setIsResending] = useState(false);
     const [authError, setAuthError] = useState('');
-    const [resendSuccess, setResendSuccess] = useState('');
-    const [isUnverified, setIsUnverified] = useState(false);
-    const [lastCredentials, setLastCredentials] = useState({ email: '', password: '' });
 
     const {
         register,
@@ -64,57 +60,34 @@ export const LoginPage = () => {
 
     const onSubmit = async (data) => {
         setAuthError('');
-        setResendSuccess('');
-        setIsUnverified(false);
         setIsLoading(true);
 
         try {
             await authService.login(data.email.trim(), data.password, data.rememberMe);
-            // Do NOT call navigate('/') manually here.
             // AuthContext will update onAuthStateChanged, triggering the useEffect above smoothly.
         } catch (error) {
-            if (error.message === 'Please verify your email before signing in.') {
-                setIsUnverified(true);
-                setLastCredentials({ email: data.email.trim(), password: data.password });
-                setAuthError(error.message);
-            } else {
-                setAuthError(error.message);
+            // If authentication succeeded despite a minor background/presence error, bypass the error banner
+            if (isAuthenticated) {
+                return;
             }
+            setAuthError(error.message || 'Failed to complete authentication request. Please try again.');
             setIsLoading(false);
         }
     };
 
     const handleGoogleSignIn = async () => {
         setAuthError('');
-        setResendSuccess('');
-        setIsUnverified(false);
         setIsGoogleLoading(true);
 
         try {
             await authService.googleLogin();
-            // Do NOT call navigate('/') manually here. Let useEffect handle it reactively.
+            // Let useEffect handle navigation reactively.
         } catch (error) {
-            setAuthError(error.message);
+            if (isAuthenticated) {
+                return;
+            }
+            setAuthError(error.message || 'Failed to complete Google sign-in. Please try again.');
             setIsGoogleLoading(false);
-        }
-    };
-
-    const handleResendVerification = async () => {
-        if (!lastCredentials.email || !lastCredentials.password) return;
-
-        setResendSuccess('');
-        setIsResending(true);
-
-        try {
-            await authService.resendVerificationEmail(
-                lastCredentials.email,
-                lastCredentials.password
-            );
-            setResendSuccess('Verification email sent successfully.');
-        } catch (error) {
-            setAuthError(error.message);
-        } finally {
-            setIsResending(false);
         }
     };
 
@@ -135,7 +108,7 @@ export const LoginPage = () => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth="2.5"
-                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                         />
                     </svg>
                 </div>
@@ -211,47 +184,10 @@ export const LoginPage = () => {
             {authError && (
                 <div
                     role="alert"
-                    className="mt-4 p-3.5 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs space-y-2"
-                >
-                    <div className="flex items-center space-x-2">
-                        <svg
-                            className="w-4 h-4 flex-shrink-0 text-rose-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                        <span>{authError}</span>
-                    </div>
-                    {isUnverified && (
-                        <div className="pt-1 pl-6">
-                            <button
-                                type="button"
-                                onClick={handleResendVerification}
-                                disabled={isResending}
-                                className="font-semibold text-indigo-400 hover:underline focus:outline-none disabled:opacity-50"
-                            >
-                                {isResending ? 'Sending...' : 'Resend Verification Email'}
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Resend Success Banner */}
-            {resendSuccess && (
-                <div
-                    role="status"
-                    className="mt-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3.5 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs flex items-center space-x-2"
                 >
                     <svg
-                        className="w-4 h-4 flex-shrink-0 text-emerald-500"
+                        className="w-4 h-4 flex-shrink-0 text-rose-500"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -260,10 +196,10 @@ export const LoginPage = () => {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth="2"
-                            d="M5 13l4 4L19 7"
+                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                         />
                     </svg>
-                    <span>{resendSuccess}</span>
+                    <span>{authError}</span>
                 </div>
             )}
 

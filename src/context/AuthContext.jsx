@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 
 // Firebase
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../firebase/auth';
 
 // Services
@@ -56,9 +56,22 @@ export const AuthProvider = ({ children }) => {
         return () => unsubscribe();
     }, []);
 
+    // --- FIX: Bulletproof Logout Logic ---
     const logout = async () => {
-        await authService.logout();
-        setUser(null);
+        try {
+            // Attempt standard service logout (handles presence updates, etc.)
+            if (authService && typeof authService.logout === 'function') {
+                await authService.logout();
+            } else {
+                await signOut(auth);
+            }
+        } catch (error) {
+            console.warn('[AuthContext] Service logout threw an error, forcing native Firebase signOut:', error);
+            await signOut(auth); // Force absolute native signout if the service fails
+        } finally {
+            // GUARANTEE the context is wiped instantly
+            setUser(null);
+        }
     };
 
     const value = {
