@@ -1,5 +1,5 @@
 // React
-import React, { useState, memo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 
 // Third Party Libraries
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,34 +9,57 @@ import { useAuth } from '../../hooks/useAuth';
 import { groupService } from '../../services/groupService';
 import { useToast } from '../../context/ToastContext';
 import { GROUP_ROLES } from '../../constants/groupConstants';
+import { useGroups } from '../../hooks/useGroups';
+import { useConversations } from '../../hooks/useConversations';
+import { useFriends } from '../../hooks/useFriends'; // NEW: For live presence cross-referencing
 
 // Components
 import Avatar from '../ui/Avatar';
 import PresenceIndicator from '../ui/PresenceIndicator';
 import InviteMembersModal from './InviteMembersModal';
+import FriendActionButton from '../friends/FriendActionButton';
+import ProfilePreviewModal from '../friends/ProfilePreviewModal';
 
 export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
     const { user } = useAuth();
     const { showToast } = useToast();
 
+    // Pull reactive global streams
+    const { groups = [] } = useGroups() || {};
+    const { conversations = [] } = useConversations() || {};
+    const { friends = [] } = useFriends() || {}; // Fetch live friends list for accurate presence
+
     const [loadingAction, setLoadingAction] = useState(false);
     const [editing, setEditing] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [name, setName] = useState(group?.name || '');
-    const [description, setDescription] = useState(group?.description || '');
+    const [selectedMemberProfile, setSelectedMemberProfile] = useState(null);
 
-    if (!isOpen || !group) return null;
+    // REALTIME INTERCEPTOR: Always grab the absolute latest state from the global stream
+    const realtimeGroup = useMemo(() => {
+        if (!group) return null;
+        return groups.find(g => g.id === group.id)
+            || conversations.find(c => c.id === group.id)
+            || group;
+    }, [group, groups, conversations]);
 
-    const currentRole = group.roles?.[user?.uid] || GROUP_ROLES.MEMBER;
+    const [name, setName] = useState(realtimeGroup?.name || '');
+    const [description, setDescription] = useState(realtimeGroup?.description || '');
+
+    if (!isOpen || !realtimeGroup) return null;
+
+    const currentRole = realtimeGroup.roles?.[user?.uid] || GROUP_ROLES.MEMBER;
     const isOwner = currentRole === GROUP_ROLES.OWNER;
     const isAdmin = isOwner || currentRole === GROUP_ROLES.ADMIN;
 
-    const memberList = Object.values(group.participants || {});
+    // Filter active members
+    const activeMemberUids = new Set(realtimeGroup.members || []);
+    const memberList = Object.values(realtimeGroup.participants || {})
+        .filter(member => activeMemberUids.has(member.uid || member.id));
 
     let formattedCreatedDate = '';
-    if (group.createdAt?.toDate) {
-        formattedCreatedDate = group.createdAt.toDate().toLocaleDateString([], {
+    if (realtimeGroup.createdAt?.toDate) {
+        formattedCreatedDate = realtimeGroup.createdAt.toDate().toLocaleDateString([], {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
@@ -50,7 +73,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         }
         try {
             setLoadingAction(true);
-            await groupService.updateGroup(group.id, { name, description });
+            await groupService.updateGroup(realtimeGroup.id, { name, description });
             showToast('Group details updated.', 'info');
             setEditing(false);
         } catch (err) {
@@ -65,10 +88,10 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         try {
             setLoadingAction(true);
             if (newRole === GROUP_ROLES.ADMIN) {
-                await groupService.promoteAdmin(group.id, targetUid);
+                await groupService.promoteAdmin(realtimeGroup.id, targetUid);
                 showToast('Promoted member to Admin.', 'info');
             } else {
-                await groupService.demoteAdmin(group.id, targetUid);
+                await groupService.demoteAdmin(realtimeGroup.id, targetUid);
                 showToast('Demoted admin to Member.', 'info');
             }
         } catch (err) {
@@ -82,7 +105,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         if (loadingAction) return;
         try {
             setLoadingAction(true);
-            await groupService.transferOwnership(group.id, user.uid, targetUid);
+            await groupService.transferOwnership(realtimeGroup.id, user.uid, targetUid);
             showToast('Group ownership transferred.', 'info');
         } catch (err) {
             showToast(err.message || 'Failed to transfer ownership.', 'error');
@@ -95,7 +118,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         if (loadingAction) return;
         try {
             setLoadingAction(true);
-            await groupService.removeMember(group.id, targetUid);
+            await groupService.removeMember(realtimeGroup.id, targetUid);
             showToast('Member removed from group.', 'info');
         } catch (err) {
             showToast(err.message || 'Failed to remove member.', 'error');
@@ -112,7 +135,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         }
         try {
             setLoadingAction(true);
-            await groupService.leaveGroup(group.id, user.uid);
+            await groupService.leaveGroup(realtimeGroup.id, user.uid);
             showToast('You left the group workspace.', 'info');
             onClose();
         } catch (err) {
@@ -126,7 +149,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
         if (loadingAction) return;
         try {
             setLoadingAction(true);
-            await groupService.deleteGroup(group.id);
+            await groupService.deleteGroup(realtimeGroup.id);
             showToast('Group workspace permanently deleted.', 'info');
             setShowDeleteConfirm(false);
             onClose();
@@ -166,7 +189,6 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1 scrollbar-thin">
-                            {/* Delete Group Confirmation Overlay */}
                             {showDeleteConfirm ? (
                                 <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl space-y-3 text-center animate-auth-card">
                                     <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
@@ -202,8 +224,8 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                     {/* Profile Overview Card */}
                                     <div className="flex flex-col items-center text-center space-y-2">
                                         <img
-                                            src={group.avatar}
-                                            alt={group.name}
+                                            src={realtimeGroup.avatar}
+                                            alt={realtimeGroup.name}
                                             className="w-16 h-16 rounded-2xl object-cover ring-2 ring-indigo-500/30 shadow-lg"
                                         />
 
@@ -242,7 +264,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                         ) : (
                                             <div className="space-y-1">
                                                 <div className="flex items-center justify-center space-x-1.5">
-                                                    <h3 className="text-base font-bold text-white">{group.name}</h3>
+                                                    <h3 className="text-base font-bold text-white">{realtimeGroup.name}</h3>
                                                     {isAdmin && (
                                                         <button
                                                             type="button"
@@ -256,10 +278,10 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                                         </button>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-slate-400 max-w-xs">{group.description || 'No description provided.'}</p>
+                                                <p className="text-xs text-slate-400 max-w-xs">{realtimeGroup.description || 'No description provided.'}</p>
                                                 <div className="flex items-center justify-center space-x-2 pt-1">
                                                     <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-                                                        {group.memberCount || memberList.length} Members
+                                                        {realtimeGroup.memberCount || memberList.length} Members
                                                     </span>
                                                     {formattedCreatedDate && (
                                                         <span className="text-[10px] font-medium text-slate-500">
@@ -298,47 +320,74 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                                 <div className="py-4 text-center text-xs text-slate-500">No members found.</div>
                                             ) : (
                                                 memberList.map((member) => {
-                                                    const role = group.roles?.[member.uid] || GROUP_ROLES.MEMBER;
+                                                    const role = realtimeGroup.roles?.[member.uid] || GROUP_ROLES.MEMBER;
                                                     const isMemberOwner = role === GROUP_ROLES.OWNER;
                                                     const isMemberAdmin = role === GROUP_ROLES.ADMIN;
+
+                                                    // FIX: Deriving accurate Real-time Presence
                                                     const isSelf = member.uid === user?.uid;
+                                                    const liveFriend = friends.find(f => (f.uid || f.id) === member.uid);
+
+                                                    const isOnline = isSelf
+                                                        ? (user?.isOnline ?? true)
+                                                        : (liveFriend ? liveFriend.isOnline : member.isOnline);
+
+                                                    const lastSeen = isSelf
+                                                        ? null
+                                                        : (liveFriend ? liveFriend.lastSeen : member.lastSeen);
+
+                                                    const displayName = member.fullName || member.displayName || member.username || 'User';
 
                                                     return (
                                                         <div
                                                             key={member.uid}
-                                                            className="p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 flex items-center justify-between"
+                                                            // FIX: Added flex-wrap and gap-2 to gracefully handle small screens
+                                                            className="p-2.5 rounded-2xl bg-slate-800/40 border border-slate-800 flex flex-wrap items-center justify-between gap-2"
                                                         >
-                                                            <div className="flex items-center space-x-2.5 min-w-0">
+                                                            {/* FIX: Added min-w-[150px] and flex-1 so names are never crushed */}
+                                                            <div
+                                                                className={`flex items-center space-x-2.5 flex-1 min-w-[150px] p-1 -ml-1 rounded-xl transition-colors ${!isSelf ? 'cursor-pointer hover:bg-slate-700/50' : ''}`}
+                                                                onClick={() => !isSelf && setSelectedMemberProfile(member)}
+                                                                title={!isSelf ? "View Profile" : ""}
+                                                            >
                                                                 <Avatar
                                                                     src={member.photoURL}
-                                                                    name={member.fullName || 'User'}
+                                                                    name={displayName}
                                                                     size="sm"
-                                                                    isOnline={member.isOnline}
+                                                                    isOnline={isOnline}
                                                                 />
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="flex items-center space-x-1.5">
                                                                         <span className="text-xs font-bold text-white truncate">
-                                                                            {member.fullName || 'User'}
+                                                                            {displayName}
                                                                         </span>
-                                                                        {isSelf && <span className="text-[9px] text-indigo-400 font-bold">(You)</span>}
+                                                                        {isSelf && <span className="text-[9px] text-indigo-400 font-bold shrink-0">(You)</span>}
                                                                     </div>
                                                                     <span className="text-[10px] text-slate-400 truncate">
                                                                         @{member.username || 'user'}
                                                                     </span>
                                                                     <div className="mt-0.5">
                                                                         <PresenceIndicator
-                                                                            isOnline={member.isOnline}
-                                                                            lastSeen={member.lastSeen}
+                                                                            isOnline={isOnline}
+                                                                            lastSeen={lastSeen}
                                                                             size="sm"
                                                                         />
                                                                     </div>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Role Badges & Context Actions */}
-                                                            <div className="flex items-center space-x-2">
+                                                            {/* FIX: Added shrink-0 and ml-auto to protect button widths and push them right */}
+                                                            <div className="flex items-center space-x-2 shrink-0 ml-auto">
+
+                                                                {/* Social Action: Add Friend */}
+                                                                {!isSelf && (
+                                                                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                                        <FriendActionButton targetUser={member} />
+                                                                    </div>
+                                                                )}
+
                                                                 <span
-                                                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${isMemberOwner
+                                                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${isMemberOwner
                                                                         ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                                                                         : isMemberAdmin
                                                                             ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
@@ -349,7 +398,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                                                 </span>
 
                                                                 {!isSelf && (
-                                                                    <div className="flex items-center space-x-1">
+                                                                    <div className="flex items-center space-x-1 shrink-0">
                                                                         {/* Owner Role Actions */}
                                                                         {isOwner && (
                                                                             <>
@@ -448,12 +497,20 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                 </div>
             </AnimatePresence>
 
-            {/* --- FIX: Place Invite Modal BELOW AnimatePresence so it layers over top --- */}
+            {/* Invite Modal Layer */}
             {isInviteModalOpen && (
                 <InviteMembersModal
-                    group={group}
+                    group={realtimeGroup}
                     isOpen={isInviteModalOpen}
                     onClose={() => setIsInviteModalOpen(false)}
+                />
+            )}
+
+            {/* Member Profile Preview Modal */}
+            {selectedMemberProfile && (
+                <ProfilePreviewModal
+                    targetUser={selectedMemberProfile}
+                    onClose={() => setSelectedMemberProfile(null)}
                 />
             )}
         </>

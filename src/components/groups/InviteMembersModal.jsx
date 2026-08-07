@@ -1,12 +1,17 @@
 // React
 import React, { useState, useMemo, memo } from 'react';
+
 // Third Party Libraries
 import { motion, AnimatePresence } from 'framer-motion';
+
 // Services & Hooks
 import { useFriends } from '../../hooks/useFriends';
 import { groupService } from '../../services/groupService';
 import { useToast } from '../../context/ToastContext';
 import { GROUP_LIMITS } from '../../constants/groupConstants';
+import { useGroups } from '../../hooks/useGroups';
+import { useConversations } from '../../hooks/useConversations';
+
 // Components
 import Avatar from '../ui/Avatar';
 import PresenceIndicator from '../ui/PresenceIndicator';
@@ -15,22 +20,34 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
     const { friends = [] } = useFriends() || {};
     const { showToast } = useToast();
 
+    // Pull reactive global streams
+    const { groups = [] } = useGroups() || {};
+    const { conversations = [] } = useConversations() || {};
+
     const [selectedFriendIds, setSelectedFriendIds] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    // REALTIME INTERCEPTOR: Guarantee accurate invite exclusions
+    const realtimeGroup = useMemo(() => {
+        if (!group) return null;
+        return groups.find(g => g.id === group.id)
+            || conversations.find(c => c.id === group.id)
+            || group;
+    }, [group, groups, conversations]);
 
     // Safely extract fallback ID identifiers in case payload differs
     const getFriendUid = (friend) => friend?.uid || friend?.id || friend?.friendUid;
 
     // Filter out friends who are ALREADY members of this group
     const invitableFriends = useMemo(() => {
-        if (!group?.members) return [];
-        const currentMemberSet = new Set(group.members);
+        if (!realtimeGroup?.members) return [];
+        const currentMemberSet = new Set(realtimeGroup.members);
         return friends.filter((friend) => {
             const fUid = getFriendUid(friend);
             return fUid && !currentMemberSet.has(fUid);
         });
-    }, [friends, group?.members]);
+    }, [friends, realtimeGroup?.members]);
 
     // Apply search query filter
     const filteredFriends = useMemo(() => {
@@ -52,7 +69,7 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
             if (next.has(friendUid)) {
                 next.delete(friendUid);
             } else {
-                const projectedTotal = (group?.members?.length || 0) + next.size + 1;
+                const projectedTotal = (realtimeGroup?.members?.length || 0) + next.size + 1;
                 if (projectedTotal > GROUP_LIMITS.MAX_MEMBERS) {
                     showToast(`Cannot exceed maximum group limit (${GROUP_LIMITS.MAX_MEMBERS} members).`, 'error');
                     return prev;
@@ -77,7 +94,7 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                 return uid && selectedFriendIds.has(uid);
             });
 
-            await groupService.addMember(group.id, selectedFriendsList);
+            await groupService.addMember(realtimeGroup.id, selectedFriendsList);
             showToast(`Invited ${selectedFriendsList.length} new member(s) to the group.`, 'info');
 
             setSelectedFriendIds(new Set());
@@ -91,12 +108,11 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
         }
     };
 
-    if (!isOpen || !group) return null;
+    if (!isOpen || !realtimeGroup) return null;
 
     return (
         <AnimatePresence>
             <div
-                // --- FIX: Increased from z-50 to z-[60] so it sits over the Profile Modal ---
                 className="fixed inset-0 z-[60] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 select-none"
                 onClick={onClose}
             >
@@ -112,7 +128,7 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                         <div>
                             <h2 className="text-base font-bold text-white tracking-tight">Invite Friends</h2>
                             <p className="text-[11px] text-slate-400 truncate max-w-[260px]">
-                                Add accepted friends to <span className="text-indigo-400 font-semibold">{group.name}</span>
+                                Add accepted friends to <span className="text-indigo-400 font-semibold">{realtimeGroup.name}</span>
                             </p>
                         </div>
                         <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-all cursor-pointer">
