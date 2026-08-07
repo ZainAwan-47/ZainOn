@@ -21,7 +21,7 @@ export const ChatHeader = memo(({
 
     return (
         <div className="flex flex-col shrink-0 select-none">
-            <div className="h-[72px] px-5 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between backdrop-blur-md">
+            <div className="h-[72px] px-5 bg-[var(--bg-surface)]/90 border-b border-[var(--border-color)] flex items-center justify-between backdrop-blur-md">
 
                 {isGroup ? (
                     /* Group Workspace Header */
@@ -33,18 +33,18 @@ export const ChatHeader = memo(({
                             <img
                                 src={conversation.avatar}
                                 alt={conversation.name}
-                                className="w-10 h-10 rounded-2xl object-cover ring-1 ring-slate-700/60"
+                                className="w-10 h-10 rounded-2xl object-cover ring-1 ring-[var(--border-color)]"
                             />
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-indigo-600 border border-slate-900 rounded-full flex items-center justify-center text-[9px] text-white font-extrabold shadow-sm">
+                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-primary)] border border-[var(--bg-surface)] rounded-full flex items-center justify-center text-[9px] text-white font-extrabold shadow-sm">
                                 #
                             </div>
                         </div>
 
                         <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                            <span className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] transition-colors truncate">
                                 {conversation.name || 'Group Workspace'}
                             </span>
-                            <span className="text-[10px] font-semibold text-indigo-400">
+                            <span className="text-[10px] font-semibold text-[var(--color-primary)] opacity-90">
                                 {conversation.memberCount || conversation.members?.length || 0} members
                             </span>
                         </div>
@@ -62,7 +62,7 @@ export const ChatHeader = memo(({
                             isOnline={effectiveParticipant.isOnline}
                         />
                         <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                            <span className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] transition-colors truncate">
                                 {effectiveParticipant.fullName || 'User'}
                             </span>
                             <PresenceIndicator
@@ -80,7 +80,7 @@ export const ChatHeader = memo(({
                         <button
                             type="button"
                             onClick={onCloseChat}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all focus:outline-none active:scale-95"
+                            className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all focus:outline-none active:scale-95"
                             title="Close Chat"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

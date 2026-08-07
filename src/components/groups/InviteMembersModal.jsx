@@ -20,7 +20,6 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
     const { friends = [] } = useFriends() || {};
     const { showToast } = useToast();
 
-    // Pull reactive global streams
     const { groups = [] } = useGroups() || {};
     const { conversations = [] } = useConversations() || {};
 
@@ -28,7 +27,6 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
     const [searchQuery, setSearchQuery] = useState('');
     const [submitting, setSubmitting] = useState(false);
 
-    // REALTIME INTERCEPTOR: Guarantee accurate invite exclusions
     const realtimeGroup = useMemo(() => {
         if (!group) return null;
         return groups.find(g => g.id === group.id)
@@ -36,10 +34,8 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
             || group;
     }, [group, groups, conversations]);
 
-    // Safely extract fallback ID identifiers in case payload differs
     const getFriendUid = (friend) => friend?.uid || friend?.id || friend?.friendUid;
 
-    // Filter out friends who are ALREADY members of this group
     const invitableFriends = useMemo(() => {
         if (!realtimeGroup?.members) return [];
         const currentMemberSet = new Set(realtimeGroup.members);
@@ -49,7 +45,6 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
         });
     }, [friends, realtimeGroup?.members]);
 
-    // Apply search query filter
     const filteredFriends = useMemo(() => {
         if (!searchQuery.trim()) return invitableFriends;
         const q = searchQuery.toLowerCase();
@@ -113,7 +108,7 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
     return (
         <AnimatePresence>
             <div
-                className="fixed inset-0 z-[60] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 select-none"
+                className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 select-none"
                 onClick={onClose}
             >
                 <motion.div
@@ -121,17 +116,17 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 15 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full h-full sm:h-auto sm:max-h-[85vh] max-w-md bg-slate-900 border-0 sm:border border-slate-800 rounded-none sm:rounded-3xl p-5 shadow-2xl flex flex-col overflow-hidden"
+                    className="w-full h-full sm:h-auto sm:max-h-[85vh] max-w-md bg-[var(--bg-surface)] border-0 sm:border border-[var(--border-color)] rounded-none sm:rounded-3xl p-5 shadow-2xl flex flex-col overflow-hidden transition-colors duration-300"
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                    <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)] shrink-0">
                         <div>
-                            <h2 className="text-base font-bold text-white tracking-tight">Invite Friends</h2>
-                            <p className="text-[11px] text-slate-400 truncate max-w-[260px]">
-                                Add accepted friends to <span className="text-indigo-400 font-semibold">{realtimeGroup.name}</span>
+                            <h2 className="text-base font-bold text-[var(--text-primary)] tracking-tight">Invite Friends</h2>
+                            <p className="text-[11px] text-[var(--text-secondary)] truncate max-w-[260px]">
+                                Add accepted friends to <span className="text-[var(--color-primary)] font-semibold">{realtimeGroup.name}</span>
                             </p>
                         </div>
-                        <button type="button" onClick={onClose} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-all cursor-pointer">
+                        <button type="button" onClick={onClose} className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] rounded-full transition-all cursor-pointer">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -146,16 +141,16 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                                 placeholder="Search friends by name or @username..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full py-2 pl-9 pr-8 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                                className="w-full py-2 pl-9 pr-8 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
                             />
-                            <svg className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-[var(--text-secondary)] absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </div>
 
                         <div className="flex items-center justify-between px-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Friends</span>
-                            <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
+                            <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Available Friends</span>
+                            <span className="text-[10px] font-bold text-[var(--color-primary)] bg-[var(--color-primary)]/10 px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20">
                                 {selectedFriendIds.size} Selected
                             </span>
                         </div>
@@ -163,15 +158,15 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                         <div className="space-y-1.5 min-h-[200px] max-h-60 overflow-y-auto pr-1 scrollbar-thin">
                             {invitableFriends.length === 0 ? (
                                 <div className="py-12 px-4 text-center space-y-1 select-none">
-                                    <span className="text-xs font-bold text-slate-300 block">All Friends Are Members</span>
-                                    <p className="text-[11px] text-slate-400 max-w-[220px] mx-auto">
+                                    <span className="text-xs font-bold text-[var(--text-primary)] block">All Friends Are Members</span>
+                                    <p className="text-[11px] text-[var(--text-secondary)] max-w-[220px] mx-auto">
                                         Every friend on your accepted friends list is already in this group.
                                     </p>
                                 </div>
                             ) : filteredFriends.length === 0 ? (
                                 <div className="py-12 px-4 text-center space-y-1 select-none">
-                                    <span className="text-xs font-bold text-slate-300 block">No Friends Match Search</span>
-                                    <p className="text-[11px] text-slate-400">Try searching with a different name or username.</p>
+                                    <span className="text-xs font-bold text-[var(--text-primary)] block">No Friends Match Search</span>
+                                    <p className="text-[11px] text-[var(--text-secondary)]">Try searching with a different name or username.</p>
                                 </div>
                             ) : (
                                 filteredFriends.map((friend) => {
@@ -181,20 +176,20 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                                         <div
                                             key={friendUid}
                                             onClick={() => toggleFriendSelection(friend)}
-                                            className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isSelected ? 'bg-indigo-600/15 border-indigo-500/40 text-white' : 'bg-slate-800/40 hover:bg-slate-800/80 border-transparent text-slate-300'
+                                            className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${isSelected ? 'bg-[var(--color-primary)]/15 border-[var(--color-primary)]/40 text-[var(--text-primary)]' : 'bg-[var(--bg-surface-hover)] hover:bg-[var(--bg-surface-hover)] border-transparent text-[var(--text-secondary)]'
                                                 }`}
                                         >
                                             <div className="flex items-center space-x-3 min-w-0">
                                                 <Avatar src={friend.photoURL} name={friend.fullName || 'User'} size="md" isOnline={friend.isOnline} />
                                                 <div className="flex flex-col min-w-0">
-                                                    <span className="text-xs font-bold text-white truncate">{friend.fullName || 'User'}</span>
-                                                    <span className="text-[10px] text-indigo-400 truncate">@{friend.username || 'username'}</span>
+                                                    <span className="text-xs font-bold text-[var(--text-primary)] truncate">{friend.fullName || 'User'}</span>
+                                                    <span className="text-[10px] text-[var(--color-primary)] truncate">@{friend.username || 'username'}</span>
                                                     <div className="mt-0.5">
                                                         <PresenceIndicator isOnline={friend.isOnline} lastSeen={friend.lastSeen} size="sm" />
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${isSelected ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 bg-slate-950/50'}`}>
+                                            <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${isSelected ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-[var(--border-color)] bg-[var(--bg-main)]'}`}>
                                                 {isSelected && (
                                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
@@ -208,15 +203,15 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                         </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-800 flex items-center space-x-2 shrink-0">
-                        <button type="button" onClick={onClose} className="flex-1 py-2.5 px-3 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer">
+                    <div className="pt-3 border-t border-[var(--border-color)] flex items-center space-x-2 shrink-0">
+                        <button type="button" onClick={onClose} className="flex-1 py-2.5 px-3 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--text-primary)] rounded-xl font-bold text-xs border border-[var(--border-color)] transition-all active:scale-95 cursor-pointer">
                             Cancel
                         </button>
                         <button
                             type="button"
                             disabled={selectedFriendIds.size === 0 || submitting}
                             onClick={handleInvite}
-                            className="flex-1 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-1"
+                            className="flex-1 py-2.5 px-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-1"
                         >
                             <span>{submitting ? 'Adding...' : 'Add Selected'}</span>
                         </button>

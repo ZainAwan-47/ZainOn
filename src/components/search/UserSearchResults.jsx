@@ -14,17 +14,17 @@ export const UserSearchResults = ({
     if (isSearching) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
-                <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-xs font-semibold text-slate-400">Searching users...</p>
+                <div className="w-7 h-7 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs font-semibold text-[var(--text-secondary)]">Searching users...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-900/50 text-center space-y-1">
-                <p className="text-xs font-bold text-rose-300">Search Error</p>
-                <p className="text-[11px] text-rose-400/90">{error}</p>
+            <div className="p-4 rounded-xl bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 text-center space-y-1">
+                <p className="text-xs font-bold text-[var(--color-danger)]">Search Error</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">{error}</p>
             </div>
         );
     }
@@ -32,7 +32,7 @@ export const UserSearchResults = ({
     if (!searchQuery.trim()) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center space-y-2 select-none">
-                <div className="w-12 h-12 rounded-2xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-center text-slate-400 mb-1">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-1 shadow-sm">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                             strokeLinecap="round"
@@ -42,8 +42,8 @@ export const UserSearchResults = ({
                         />
                     </svg>
                 </div>
-                <span className="text-xs font-bold text-slate-300">Search for Users</span>
-                <p className="text-[11px] text-slate-400 leading-normal max-w-[220px]">
+                <span className="text-xs font-bold text-[var(--text-primary)]">Search for Users</span>
+                <p className="text-[11px] text-[var(--text-secondary)] leading-normal max-w-[220px]">
                     Type a name or username to find people across ZainOn.
                 </p>
             </div>
@@ -53,7 +53,7 @@ export const UserSearchResults = ({
     if (results.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center space-y-2 select-none">
-                <div className="w-12 h-12 rounded-2xl bg-slate-800/40 border border-slate-800 flex items-center justify-center text-slate-400 mb-1">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-1 shadow-sm">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                             strokeLinecap="round"
@@ -63,9 +63,9 @@ export const UserSearchResults = ({
                         />
                     </svg>
                 </div>
-                <span className="text-xs font-bold text-slate-300">No Users Found</span>
-                <p className="text-[11px] text-slate-400 leading-normal">
-                    No user matched &quot;<span className="text-white font-semibold">{searchQuery}</span>&quot;
+                <span className="text-xs font-bold text-[var(--text-primary)]">No Users Found</span>
+                <p className="text-[11px] text-[var(--text-secondary)] leading-normal">
+                    No user matched &quot;<span className="text-[var(--text-primary)] font-semibold">{searchQuery}</span>&quot;
                 </p>
             </div>
         );
@@ -73,9 +73,9 @@ export const UserSearchResults = ({
 
     return (
         <div className="space-y-1.5 p-0.5">
-            <div className="px-1 py-1 flex items-center justify-between text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="px-1 py-1 flex items-center justify-between text-[11px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
                 <span>Search Results</span>
-                <span className="bg-slate-800 px-2 py-0.5 rounded-full text-[10px] text-indigo-400 font-bold">
+                <span className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-2 py-0.5 rounded-full text-[10px] text-[var(--color-primary)] font-bold">
                     {results.length}
                 </span>
             </div>

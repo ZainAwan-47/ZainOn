@@ -22,8 +22,8 @@ export const ChatPage = () => {
 
     if (!activeConversation) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center select-none bg-slate-950">
-                <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 mb-4 shadow-xl">
+            <div className="flex-1 flex flex-col items-center justify-center h-full p-6 text-center select-none bg-[var(--bg-main)] text-[var(--text-primary)] transition-colors duration-300">
+                <div className="w-16 h-16 rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-4 shadow-xl">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
                             strokeLinecap="round"
@@ -33,8 +33,8 @@ export const ChatPage = () => {
                         />
                     </svg>
                 </div>
-                <h2 className="text-lg font-bold text-white tracking-tight">Your Workspace Chat</h2>
-                <p className="text-xs text-slate-400 mt-1 max-w-sm leading-relaxed">
+                <h2 className="text-lg font-bold tracking-tight">Your Workspace Chat</h2>
+                <p className="text-xs text-[var(--text-secondary)] mt-1 max-w-sm leading-relaxed">
                     Select an active conversation from the sidebar or pick a user to start chatting in real time.
                 </p>
             </div>
@@ -45,7 +45,6 @@ export const ChatPage = () => {
         <ChatRoom
             conversation={activeConversation}
             onViewProfile={setSelectedPreviewUser}
-            // --- FIX: Pass down onCloseChat to make the cross button render ---
             onCloseChat={() => setActiveConversationId(null)}
         />
     );

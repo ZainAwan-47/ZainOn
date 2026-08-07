@@ -17,11 +17,11 @@ export const IconButton = ({
 
     const variantClasses = {
         ghost:
-            'text-slate-400 hover:bg-slate-800/80 hover:text-white active:scale-95',
+            'text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)] active:scale-95',
         danger:
-            'text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 active:scale-95',
+            'text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 hover:opacity-90 active:scale-95',
         primary:
-            'bg-indigo-600 text-white hover:bg-indigo-500 active:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-600/25',
+            'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:scale-95 shadow-md shadow-[var(--color-primary)]/25',
     };
 
     return (
@@ -31,7 +31,7 @@ export const IconButton = ({
             title={title}
             disabled={disabled}
             aria-label={title}
-            className={`${sizeClasses[size]} ${variantClasses[variant]} rounded-xl transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 disabled:opacity-35 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center shrink-0`}
+            className={`${sizeClasses[size]} ${variantClasses[variant]} rounded-xl transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] disabled:opacity-35 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center shrink-0 cursor-pointer`}
         >
             {children}
         </button>

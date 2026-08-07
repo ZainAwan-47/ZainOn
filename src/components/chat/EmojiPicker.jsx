@@ -24,17 +24,17 @@ export const EmojiPicker = ({ onSelectEmoji, onClose }) => {
     const [activeTab, setActiveTab] = useState('Frequent');
 
     return (
-        <div className="absolute bottom-14 left-2 z-50 w-72 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl p-3 flex flex-col select-none animate-auth-card">
+        <div className="absolute bottom-14 left-2 z-50 w-72 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-3 flex flex-col select-none animate-auth-card">
             {/* Category Tabs */}
-            <div className="flex items-center space-x-1 pb-2 border-b border-slate-800 shrink-0 overflow-x-auto scrollbar-none">
+            <div className="flex items-center space-x-1 pb-2 border-b border-[var(--border-color)] shrink-0 overflow-x-auto scrollbar-none">
                 {EMOJI_CATEGORIES.map((cat) => (
                     <button
                         key={cat.name}
                         type="button"
                         onClick={() => setActiveTab(cat.name)}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${activeTab === cat.name
-                                ? 'bg-indigo-600 text-white'
-                                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                ? 'bg-[var(--color-primary)] text-white'
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]'
                             }`}
                     >
                         {cat.name}
@@ -52,7 +52,7 @@ export const EmojiPicker = ({ onSelectEmoji, onClose }) => {
                             onSelectEmoji(emoji);
                             onClose && onClose();
                         }}
-                        className="w-8 h-8 flex items-center justify-center text-lg hover:bg-slate-800 rounded-xl transition-transform hover:scale-125 focus:outline-none active:scale-95"
+                        className="w-8 h-8 flex items-center justify-center text-lg hover:bg-[var(--bg-surface-hover)] rounded-xl transition-transform hover:scale-125 focus:outline-none active:scale-95"
                     >
                         {emoji}
                     </button>

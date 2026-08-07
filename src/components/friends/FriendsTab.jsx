@@ -14,12 +14,10 @@ export const FriendsTab = memo(({
     setIsSidebarOpen,
 }) => {
     const handleFriendClick = (friend) => {
-        // 1. Auto collapse mobile sidebar drawer
         if (isMobile && setIsSidebarOpen) {
             setIsSidebarOpen(false);
         }
 
-        // 2. Dispatch profile view / chat launch
         if (onViewProfile) {
             onViewProfile(friend);
         } else if (onSelectFriend) {
@@ -30,8 +28,8 @@ export const FriendsTab = memo(({
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-12 space-y-3">
-                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs text-slate-400 font-medium">Loading friends...</span>
+                <div className="w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-[var(--text-secondary)] font-medium">Loading friends...</span>
             </div>
         );
     }
@@ -39,13 +37,13 @@ export const FriendsTab = memo(({
     if (friends.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-2 select-none">
-                <div className="w-10 h-10 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 mb-1">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-1 shadow-sm">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                 </div>
-                <span className="text-xs font-bold text-slate-300">No Friends Yet</span>
-                <p className="text-[11px] text-slate-400 max-w-[200px]">
+                <span className="text-xs font-bold text-[var(--text-primary)]">No Friends Yet</span>
+                <p className="text-[11px] text-[var(--text-secondary)] max-w-[200px]">
                     Search for users by username or name to add new friends.
                 </p>
             </div>
@@ -55,10 +53,10 @@ export const FriendsTab = memo(({
     return (
         <div className="flex flex-col space-y-1.5 p-1">
             <div className="flex items-center justify-between px-2 py-1 mb-1 select-none">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                     My Friends
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400 font-bold">
+                <span className="px-1.5 py-0.5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] text-[var(--text-secondary)] font-bold">
                     {friends.length}
                 </span>
             </div>
@@ -67,7 +65,7 @@ export const FriendsTab = memo(({
                 <div
                     key={friend.uid}
                     onClick={() => handleFriendClick(friend)}
-                    className="p-3 rounded-2xl bg-slate-800/40 hover:bg-slate-800/80 border border-transparent hover:border-slate-700/50 transition-all cursor-pointer flex items-center justify-between group select-none"
+                    className="p-3 rounded-2xl bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] border border-transparent hover:border-[var(--border-color)] transition-all cursor-pointer flex items-center justify-between group select-none shadow-sm"
                 >
                     <div className="flex items-center space-x-3.5 min-w-0">
                         <Avatar
@@ -78,10 +76,10 @@ export const FriendsTab = memo(({
                         />
 
                         <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors truncate">
+                            <span className="text-xs font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] transition-colors truncate">
                                 {friend.fullName || 'User'}
                             </span>
-                            <span className="text-[10px] text-indigo-400 truncate">
+                            <span className="text-[10px] text-[var(--color-primary)] opacity-90 truncate">
                                 @{friend.username || 'username'}
                             </span>
                             <div className="mt-0.5">
@@ -96,7 +94,7 @@ export const FriendsTab = memo(({
 
                     <button
                         type="button"
-                        className="p-2 text-slate-400 group-hover:text-indigo-400 hover:bg-slate-700/50 rounded-xl transition-all cursor-pointer shrink-0"
+                        className="p-2 text-[var(--text-secondary)] group-hover:text-[var(--color-primary)] hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all cursor-pointer shrink-0"
                         title="View Profile"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

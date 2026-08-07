@@ -15,10 +15,10 @@ export const MessageContextMenu = ({
     return (
         <div
             onClick={(e) => e.stopPropagation()}
-            className="flex flex-col bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-xl p-1.5 backdrop-blur-md select-none space-y-1 animate-auth-card"
+            className="flex flex-col bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-xl p-1.5 backdrop-blur-md select-none space-y-1 animate-auth-card"
         >
             {/* Quick Emoji Reaction Bar */}
-            <div className="flex items-center space-x-1 pb-1 border-b border-slate-800 px-1">
+            <div className="flex items-center space-x-1 pb-1 border-b border-[var(--border-color)] px-1">
                 {QUICK_REACTIONS.map((emoji) => (
                     <button
                         key={emoji}
@@ -27,7 +27,7 @@ export const MessageContextMenu = ({
                             e.stopPropagation();
                             onReact(emoji);
                         }}
-                        className="w-7 h-7 flex items-center justify-center text-sm hover:bg-slate-800 rounded-lg transition-transform hover:scale-125 focus:outline-none active:scale-95 cursor-pointer"
+                        className="w-7 h-7 flex items-center justify-center text-sm hover:bg-[var(--bg-surface-hover)] rounded-lg transition-transform hover:scale-125 focus:outline-none active:scale-95 cursor-pointer"
                     >
                         {emoji}
                     </button>
@@ -42,7 +42,7 @@ export const MessageContextMenu = ({
                         e.stopPropagation();
                         onReply();
                     }}
-                    className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-indigo-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer"
+                    className="p-1.5 hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:text-[var(--color-primary)] rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer"
                     title="Reply"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +57,7 @@ export const MessageContextMenu = ({
                         e.stopPropagation();
                         onCopy();
                     }}
-                    className="p-1.5 hover:bg-slate-800 text-slate-300 hover:text-indigo-400 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer"
+                    className="p-1.5 hover:bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] hover:text-[var(--color-primary)] rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer"
                     title="Copy"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,7 +72,7 @@ export const MessageContextMenu = ({
                         e.stopPropagation();
                         onPin();
                     }}
-                    className={`p-1.5 hover:bg-slate-800 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer ${isPinned ? 'text-indigo-400' : 'text-slate-300 hover:text-indigo-400'
+                    className={`p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer ${isPinned ? 'text-[var(--color-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--color-primary)]'
                         }`}
                     title={isPinned ? 'Unpin' : 'Pin'}
                 >
@@ -88,7 +88,7 @@ export const MessageContextMenu = ({
                         e.stopPropagation();
                         onStar();
                     }}
-                    className={`p-1.5 hover:bg-slate-800 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer ${isStarred ? 'text-amber-400' : 'text-slate-300 hover:text-amber-400'
+                    className={`p-1.5 hover:bg-[var(--bg-surface-hover)] rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition-colors active:scale-95 cursor-pointer ${isStarred ? 'text-[var(--color-warning)]' : 'text-[var(--text-secondary)] hover:text-[var(--color-warning)]'
                         }`}
                     title={isStarred ? 'Unstar' : 'Star'}
                 >

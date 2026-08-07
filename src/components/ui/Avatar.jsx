@@ -34,11 +34,11 @@ export const Avatar = ({
                 <img
                     src={src}
                     alt={name}
-                    className={`${sizeClasses[size]} rounded-full object-cover border border-slate-700/60 shadow-sm transition-opacity hover:opacity-90`}
+                    className={`${sizeClasses[size]} rounded-full object-cover border border-[var(--border-color)] shadow-sm transition-opacity hover:opacity-90`}
                 />
             ) : (
                 <div
-                    className={`${sizeClasses[size]} rounded-full bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 text-white font-bold flex items-center justify-center shadow-md shadow-indigo-500/15 tracking-wider`}
+                    className={`${sizeClasses[size]} rounded-full bg-[var(--color-primary)] text-white font-bold flex items-center justify-center shadow-md shadow-[var(--color-primary)]/15 tracking-wider`}
                 >
                     {initials || 'U'}
                 </div>
@@ -46,7 +46,7 @@ export const Avatar = ({
 
             {showStatus && (
                 <span
-                    className={`absolute bottom-0 right-0 ${badgeSizes[size]} rounded-full ring-slate-900 transition-colors ${isOnline ? 'bg-emerald-500' : 'bg-slate-500'
+                    className={`absolute bottom-0 right-0 ${badgeSizes[size]} rounded-full ring-[var(--bg-surface)] transition-colors ${isOnline ? 'bg-[var(--color-success)]' : 'bg-[var(--text-secondary)]'
                         }`}
                     title={isOnline ? 'Online' : 'Offline'}
                 />

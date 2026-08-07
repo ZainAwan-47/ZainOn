@@ -27,7 +27,6 @@ export const ConversationItem = memo(({
     const [isFriend, setIsFriend] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    // Direct listener on user's own friends subcollection (Only for direct chats)
     useEffect(() => {
         if (!user?.uid || !otherUser?.uid || isGroup) return () => { };
 
@@ -60,7 +59,6 @@ export const ConversationItem = memo(({
         }
     }
 
-    // Soft delete chat handler
     const handleDeleteChat = async () => {
         if (!conversation.id || !user?.uid) return;
         try {
@@ -74,7 +72,6 @@ export const ConversationItem = memo(({
         }
     };
 
-    // Polymorphic display values
     const displayName = isGroup ? conversation.name : (otherUser.fullName || 'Direct Message');
     const displayAvatar = isGroup ? conversation.avatar : otherUser.photoURL;
     const displayOnline = isGroup ? false : otherUser.isOnline;
@@ -89,12 +86,13 @@ export const ConversationItem = memo(({
             />
             <div
                 onClick={onClick}
-                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center space-x-3.5 group select-none relative ${isActive ? 'bg-slate-800/90 border-indigo-500/50 shadow-md ring-1 ring-indigo-500/20' : 'bg-slate-800/40 hover:bg-slate-800/80 border-transparent hover:border-slate-700/50'} mb-1`}
+                // FIX: Stripped hardcoded tailwind colors, using semantic CSS vars for 100% theme compatibility
+                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center space-x-3.5 group select-none relative ${isActive ? 'bg-[var(--bg-surface-hover)] border-[var(--color-primary)]/50 shadow-md ring-1 ring-[var(--color-primary)]/20' : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] border-transparent hover:border-[var(--border-color)]'} mb-1`}
             >
                 <div className="relative shrink-0">
                     <Avatar src={displayAvatar} name={displayName} size="md" isOnline={displayOnline} />
                     {isGroup && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-indigo-600 border border-slate-900 rounded-full flex items-center justify-center text-[9px] text-white font-extrabold shadow-sm">
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[var(--color-primary)] border border-[var(--bg-main)] rounded-full flex items-center justify-center text-[9px] text-white font-extrabold shadow-sm">
                             #
                         </div>
                     )}
@@ -102,25 +100,25 @@ export const ConversationItem = memo(({
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                        <span className={`text-xs font-bold truncate transition-colors ${isActive ? 'text-indigo-300' : 'text-white group-hover:text-indigo-300'}`}>
+                        <span className={`text-xs font-bold truncate transition-colors ${isActive ? 'text-[var(--color-primary)]' : 'text-[var(--text-primary)] group-hover:text-[var(--color-primary)]'}`}>
                             {displayName}
                         </span>
                         {formattedTime && (
-                            <span className="text-[10px] font-medium text-slate-400 shrink-0 ml-2">
+                            <span className="text-[10px] font-medium text-[var(--text-secondary)] shrink-0 ml-2">
                                 {formattedTime}
                             </span>
                         )}
                     </div>
 
                     <div className="flex items-center justify-between gap-2 min-w-0">
-                        <p className="text-xs text-slate-400 truncate flex-1 min-w-0">
+                        <p className="text-xs text-[var(--text-secondary)] truncate flex-1 min-w-0">
                             {lastMessage?.text ? (
                                 <>
-                                    {isOwnLastMessage && <span className="font-bold text-indigo-400 mr-1">You:</span>}
+                                    {isOwnLastMessage && <span className="font-bold text-[var(--color-primary)] mr-1">You:</span>}
                                     <span>{lastMessage.text}</span>
                                 </>
                             ) : (
-                                <span className="italic text-slate-500">
+                                <span className="italic opacity-70">
                                     {isGroup ? 'Group workspace created' : 'No messages yet'}
                                 </span>
                             )}
@@ -128,12 +126,11 @@ export const ConversationItem = memo(({
 
                         <div className="flex items-center space-x-1.5 shrink-0">
                             {unreadCount > 0 && (
-                                <span className="px-1.5 py-0.5 rounded-full bg-indigo-600 text-[10px] text-white font-extrabold shrink-0 shadow-sm animate-pulse">
+                                <span className="px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-[10px] text-white font-extrabold shrink-0 shadow-sm animate-pulse">
                                     {unreadCount}
                                 </span>
                             )}
 
-                            {/* Only allow chat soft-deletes on non-friends direct messages */}
                             {!isGroup && !isFriend && (
                                 <button
                                     type="button"
@@ -141,7 +138,7 @@ export const ConversationItem = memo(({
                                         e.stopPropagation();
                                         setShowDeleteModal(true);
                                     }}
-                                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all cursor-pointer shrink-0"
+                                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 rounded-lg transition-all cursor-pointer shrink-0"
                                     title="Remove Conversation"
                                 >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

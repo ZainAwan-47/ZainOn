@@ -22,9 +22,9 @@ export const AuthInput = forwardRef(
             <div className="flex flex-col space-y-1.5">
                 <label
                     htmlFor={id}
-                    className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300"
+                    className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]"
                 >
-                    {label} {required && <span className="text-rose-500">*</span>}
+                    {label} {required && <span className="text-[var(--color-danger)]">*</span>}
                 </label>
                 <input
                     ref={ref}
@@ -35,9 +35,9 @@ export const AuthInput = forwardRef(
                     autoComplete={autoComplete}
                     aria-invalid={hasError}
                     aria-describedby={hasError ? errorId : undefined}
-                    className={`w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 text-sm transition-all duration-200 ${hasError
-                        ? 'border-rose-500 dark:border-rose-500 focus:ring-rose-500/20'
-                        : 'border-slate-200 dark:border-slate-700/80 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent'
+                    className={`w-full px-4 py-3 rounded-xl bg-[var(--bg-main)] border text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 text-sm transition-all duration-200 ${hasError
+                            ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/20'
+                            : 'border-[var(--border-color)] focus:ring-[var(--color-primary)] focus:border-transparent'
                         }`}
                     {...rest}
                 />
@@ -45,7 +45,7 @@ export const AuthInput = forwardRef(
                     <p
                         id={errorId}
                         role="alert"
-                        className="text-xs text-rose-500 dark:text-rose-400 mt-1 flex items-center space-x-1"
+                        className="text-xs text-[var(--color-danger)] mt-1 flex items-center space-x-1"
                     >
                         <svg
                             className="w-3.5 h-3.5 flex-shrink-0"

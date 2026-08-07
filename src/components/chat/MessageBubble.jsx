@@ -39,10 +39,8 @@ export const MessageBubble = memo(({
     const isStarred = Boolean(message.isStarred?.[currentUid]);
     const reactionsMap = message.reactions || {};
 
-    // Strict deduplication: calculate exactly how many unique OTHER people saw this
     const seenByOthersCount = Array.from(new Set(message.seenBy || [])).filter(uid => uid !== message.senderId).length;
 
-    // Monotonic Read Receipts - Strictly derived from persisted document status
     const isSeen = isGroup
         ? Boolean(seenByOthersCount > 0)
         : Boolean(
@@ -50,14 +48,12 @@ export const MessageBubble = memo(({
             message.deliveryStatus === 'read'
         );
 
-    // Recipient presence is intentionally excluded so delivered status is 100% irreversible
     const isDelivered = Boolean(
         isSeen ||
         message.deliveryStatus === 'delivered' ||
         (message.seenBy && message.seenBy.length > 1)
     );
 
-    // Click-Outside & Escape Listener
     useEffect(() => {
         if (!showMenu) return;
 
@@ -111,16 +107,14 @@ export const MessageBubble = memo(({
             initial={motionProfile.initial}
             animate={motionProfile.animate}
             transition={motionProfile.transition}
-            className={`relative flex flex-col my-1 group select-none ${isOwn ? 'items-end' : 'items-start'
-                }`}
+            className={`relative flex flex-col my-1 group select-none ${isOwn ? 'items-end' : 'items-start'}`}
             style={{ willChange: 'transform, opacity' }}
         >
             {/* Floating Action Context Menu */}
             {showMenu && (
                 <div
                     onClick={(e) => e.stopPropagation()}
-                    className={`absolute -top-12 z-30 transition-all ${isOwn ? 'right-0' : 'left-0'
-                        }`}
+                    className={`absolute -top-12 z-30 transition-all ${isOwn ? 'right-0' : 'left-0'}`}
                 >
                     <MessageContextMenu
                         onReact={(emoji) => {
@@ -151,40 +145,38 @@ export const MessageBubble = memo(({
             <div
                 onClick={handleBubbleClick}
                 className={`max-w-[75%] sm:max-w-[65%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm transition-all cursor-pointer relative ${isOwn
-                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white rounded-tr-xs'
-                    : 'bg-slate-800 hover:bg-slate-750 text-slate-100 border border-slate-700/60 rounded-tl-xs'
-                    } ${showMenu ? 'ring-2 ring-indigo-400/50 shadow-indigo-500/20' : ''
-                    }`}
+                        ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-tr-xs'
+                        : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-xs'
+                    } ${showMenu ? 'ring-2 ring-[var(--color-primary)]/50 shadow-[var(--color-primary)]/20' : ''}`}
             >
                 {message.replyTo && (
                     <div
                         className={`mb-2 p-2 rounded-xl text-[11px] border-l-2 ${isOwn
-                            ? 'bg-indigo-700/60 border-indigo-300 text-indigo-100'
-                            : 'bg-slate-900/60 border-indigo-500 text-slate-300'
+                                ? 'bg-black/20 border-white/40 text-white/90'
+                                : 'bg-[var(--bg-main)] border-[var(--color-primary)] text-[var(--text-secondary)]'
                             }`}
                     >
                         <span className="font-bold text-[10px] block opacity-80">
                             {message.replyTo.senderName || 'Replied Message'}
                         </span>
-                        <p className="truncate">{message.replyTo.text}</p>
+                        <p className="truncate opacity-90">{message.replyTo.text}</p>
                     </div>
                 )}
 
                 <p className="whitespace-pre-wrap">{message.text}</p>
 
                 <div
-                    className={`flex items-center justify-end space-x-1.5 mt-1 text-[9px] font-medium ${isOwn ? 'text-indigo-200/80' : 'text-slate-400'
+                    className={`flex items-center justify-end space-x-1.5 mt-1 text-[9px] font-medium ${isOwn ? 'text-white/70' : 'text-[var(--text-secondary)]'
                         }`}
                 >
                     {isStarred && (
-                        <svg className="w-2.5 h-2.5 text-amber-400 fill-current" viewBox="0 0 24 24">
+                        <svg className="w-2.5 h-2.5 text-[var(--color-warning)] fill-current" viewBox="0 0 24 24">
                             <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                         </svg>
                     )}
 
                     <span>{formattedTime}</span>
 
-                    {/* Enhanced Tri-State Read Receipts */}
                     {isOwn && (
                         <div
                             className="flex items-center pl-0.5"
@@ -205,11 +197,11 @@ export const MessageBubble = memo(({
                                 )
                             ) : (
                                 isSeen ? (
-                                    <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" title="Seen" />
+                                    <span className="w-2 h-2 rounded-full bg-[var(--color-success)] ring-2 ring-[var(--color-success)]/30" title="Seen" />
                                 ) : isDelivered ? (
-                                    <span className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30" title="Delivered" />
+                                    <span className="w-2 h-2 rounded-full bg-[var(--color-warning)] ring-2 ring-[var(--color-warning)]/30" title="Delivered" />
                                 ) : (
-                                    <span className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-400/20" title="Sent" />
+                                    <span className="w-2 h-2 rounded-full bg-[var(--text-secondary)] ring-2 ring-[var(--text-secondary)]/20" title="Sent" />
                                 )
                             )}
                         </div>
@@ -220,8 +212,7 @@ export const MessageBubble = memo(({
             {/* Emoji Reactions Pill Bar */}
             {Object.keys(reactionsMap).length > 0 && (
                 <div
-                    className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'
-                        }`}
+                    className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                     {Object.entries(reactionsMap).map(([emoji, userIds]) => {
                         const count = userIds.length;
@@ -235,8 +226,8 @@ export const MessageBubble = memo(({
                                     onViewReactions(message);
                                 }}
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 transition-all active:scale-95 cursor-pointer ${hasReacted
-                                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-300'
-                                    : 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700'
+                                        ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
+                                        : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
                                     }`}
                             >
                                 <span>{emoji}</span>

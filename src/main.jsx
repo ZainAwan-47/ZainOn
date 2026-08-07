@@ -5,8 +5,8 @@ import { BrowserRouter } from 'react-router-dom';
 
 // Context Providers
 import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './providers/ThemeProvider'; // FIX: Pointed to the new ThemeProvider
 
 // Application Router
 import AppRouter from './routes/AppRouter';

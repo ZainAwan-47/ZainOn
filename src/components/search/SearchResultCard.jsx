@@ -53,7 +53,7 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
     return (
         <div
             onClick={() => onViewProfile && onViewProfile(targetUser)}
-            className="p-3 rounded-2xl bg-slate-800/40 hover:bg-slate-800/90 border border-slate-800/80 hover:border-slate-700/60 transition-all duration-150 flex items-center justify-between group space-x-3 cursor-pointer select-none"
+            className="p-3 rounded-2xl bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] border border-[var(--border-color)] transition-all duration-150 flex items-center justify-between group space-x-3 cursor-pointer select-none shadow-sm"
         >
             <div className="flex items-center space-x-3 min-w-0 flex-1">
                 <Avatar
@@ -64,16 +64,16 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
                 />
 
                 <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-xs font-bold text-white truncate group-hover:text-indigo-300 transition-colors">
+                    <span className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--color-primary)] transition-colors">
                         {targetUser.fullName}
                     </span>
-                    <span className="text-[11px] font-medium text-slate-400 truncate">
+                    <span className="text-[11px] font-medium text-[var(--text-secondary)] truncate">
                         @{targetUser.username}
                     </span>
 
                     {/* Inline Request Info Text */}
                     {friendshipStatus === 'REQUEST_SENT' && (
-                        <span className="text-[10px] text-amber-400/90 font-medium mt-0.5">
+                        <span className="text-[10px] text-[var(--color-warning)] font-medium mt-0.5">
                             Request sent
                         </span>
                     )}
@@ -94,12 +94,12 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
                     type="button"
                     onClick={handleActionClick}
                     className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all active:scale-95 focus:outline-none ${friendshipStatus === 'NOT_FRIENDS'
-                            ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                            ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white shadow-sm'
                             : friendshipStatus === 'REQUEST_SENT'
-                                ? 'bg-amber-950/40 text-amber-400 border border-amber-500/40 hover:bg-amber-900/50'
+                                ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border border-[var(--color-warning)]/30 hover:bg-[var(--color-warning)]/20'
                                 : friendshipStatus === 'REQUEST_RECEIVED'
-                                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                                    : 'bg-emerald-950/40 border border-emerald-900/50 text-emerald-400 cursor-default'
+                                    ? 'bg-[var(--color-success)] hover:opacity-90 text-white'
+                                    : 'bg-[var(--color-success)]/10 border border-[var(--color-success)]/30 text-[var(--color-success)] cursor-default'
                         }`}
                 >
                     {friendshipStatus === 'NOT_FRIENDS' && 'Add Friend'}

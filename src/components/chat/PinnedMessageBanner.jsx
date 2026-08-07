@@ -5,10 +5,10 @@ export const PinnedMessageBanner = ({ pinnedMessage, onUnpin }) => {
     if (!pinnedMessage) return null;
 
     return (
-        <div className="px-4 py-2 bg-indigo-950/40 border-b border-indigo-900/50 flex items-center justify-between space-x-3 text-xs shrink-0 select-none backdrop-blur-sm">
+        <div className="px-4 py-2 bg-[var(--color-primary)]/10 border-b border-[var(--color-primary)]/20 flex items-center justify-between space-x-3 text-xs shrink-0 select-none backdrop-blur-sm transition-colors duration-300">
             <div className="flex items-center space-x-2.5 min-w-0 flex-1">
                 <svg
-                    className="w-4 h-4 text-indigo-400 shrink-0"
+                    className="w-4 h-4 text-[var(--color-primary)] shrink-0"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -21,17 +21,17 @@ export const PinnedMessageBanner = ({ pinnedMessage, onUnpin }) => {
                     />
                 </svg>
                 <div className="flex flex-col min-w-0 flex-1">
-                    <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider">
                         Pinned Message
                     </span>
-                    <p className="text-xs text-slate-200 truncate">{pinnedMessage.text}</p>
+                    <p className="text-xs text-[var(--text-primary)] truncate">{pinnedMessage.text}</p>
                 </div>
             </div>
 
             <button
                 type="button"
                 onClick={onUnpin}
-                className="text-slate-400 hover:text-white text-[11px] font-semibold shrink-0 focus:outline-none"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] font-semibold shrink-0 focus:outline-none transition-colors"
             >
                 Unpin
             </button>

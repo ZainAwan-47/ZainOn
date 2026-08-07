@@ -64,9 +64,7 @@ export const LoginPage = () => {
 
         try {
             await authService.login(data.email.trim(), data.password, data.rememberMe);
-            // AuthContext will update onAuthStateChanged, triggering the useEffect above smoothly.
         } catch (error) {
-            // If authentication succeeded despite a minor background/presence error, bypass the error banner
             if (isAuthenticated) {
                 return;
             }
@@ -81,7 +79,6 @@ export const LoginPage = () => {
 
         try {
             await authService.googleLogin();
-            // Let useEffect handle navigation reactively.
         } catch (error) {
             if (isAuthenticated) {
                 return;
@@ -94,10 +91,10 @@ export const LoginPage = () => {
     const isAnyLoading = isLoading || isGoogleLoading;
 
     return (
-        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 transition-colors">
+        <div className="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl shadow-2xl p-6 sm:p-8 transition-all duration-300">
             {/* Mobile-Only Header Banner */}
             <div className="lg:hidden flex flex-col items-center text-center mb-6">
-                <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-3">
+                <div className="h-12 w-12 rounded-2xl bg-[var(--color-primary)] flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/20 mb-3">
                     <svg
                         className="w-7 h-7 text-white"
                         fill="none"
@@ -112,13 +109,13 @@ export const LoginPage = () => {
                         />
                     </svg>
                 </div>
-                <span className="text-xl font-bold tracking-tight text-white mb-2">
+                <span className="text-xl font-bold tracking-tight text-[var(--text-primary)] mb-2">
                     ZainOn
                 </span>
-                <h1 className="text-2xl font-bold text-white tracking-tight">
+                <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">
                     Welcome Back
                 </h1>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
                     Enter your credentials to access your account
                 </p>
             </div>
@@ -157,16 +154,16 @@ export const LoginPage = () => {
                                 id="rememberMe"
                                 type="checkbox"
                                 disabled={isAnyLoading}
-                                className="w-4 h-4 rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-800 transition-colors cursor-pointer"
+                                className="w-4 h-4 rounded border-[var(--border-color)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] bg-[var(--bg-main)] transition-colors cursor-pointer"
                                 {...register('rememberMe')}
                             />
-                            <span className="text-xs font-medium text-slate-300">
+                            <span className="text-xs font-medium text-[var(--text-secondary)]">
                                 Remember me
                             </span>
                         </label>
                         <Link
                             to="/forgot-password"
-                            className="text-xs font-medium text-indigo-400 hover:underline focus:outline-none"
+                            className="text-xs font-medium text-[var(--color-primary)] hover:underline focus:outline-none"
                         >
                             Forgot Password?
                         </Link>
@@ -184,10 +181,10 @@ export const LoginPage = () => {
             {authError && (
                 <div
                     role="alert"
-                    className="mt-4 p-3.5 rounded-xl bg-rose-950/40 border border-rose-900/60 text-rose-300 text-xs flex items-center space-x-2"
+                    className="mt-4 p-3.5 rounded-xl bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 text-[var(--color-danger)] text-xs flex items-center space-x-2"
                 >
                     <svg
-                        className="w-4 h-4 flex-shrink-0 text-rose-500"
+                        className="w-4 h-4 flex-shrink-0"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -205,8 +202,8 @@ export const LoginPage = () => {
 
             {/* Divider */}
             <div className="relative my-6 flex items-center justify-center">
-                <div className="w-full border-t border-slate-800" />
-                <span className="absolute bg-slate-900 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <div className="w-full border-t border-[var(--border-color)]" />
+                <span className="absolute bg-[var(--bg-surface)] px-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                     OR
                 </span>
             </div>
@@ -216,7 +213,7 @@ export const LoginPage = () => {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isAnyLoading}
-                className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-700/80 text-slate-200 font-medium border border-slate-700 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 px-4 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--text-primary)] font-medium border border-[var(--border-color)] rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                     <path
@@ -240,11 +237,11 @@ export const LoginPage = () => {
             </button>
 
             {/* Footer Link */}
-            <p className="text-center text-xs text-slate-400 mt-6">
+            <p className="text-center text-xs text-[var(--text-secondary)] mt-6">
                 Don&apos;t have an account?{' '}
                 <Link
                     to="/register"
-                    className="font-semibold text-indigo-400 hover:underline focus:outline-none"
+                    className="font-semibold text-[var(--color-primary)] hover:underline focus:outline-none"
                 >
                     Create Account
                 </Link>

@@ -27,13 +27,13 @@ export const PresenceIndicator = ({
     return (
         <div className="flex items-center space-x-1.5 select-none">
             <span
-                className={`${dotSizes[size]} rounded-full shrink-0 transition-colors ${isOnline ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : 'bg-slate-500'
+                className={`${dotSizes[size]} rounded-full shrink-0 transition-colors ${isOnline ? 'bg-[var(--color-success)] ring-2 ring-[var(--color-success)]/20' : 'bg-[var(--text-secondary)]'
                     }`}
                 aria-hidden="true"
             />
             {showText && (
                 <span
-                    className={`${textSizes[size]} font-medium ${isOnline ? 'text-emerald-400' : 'text-slate-400'
+                    className={`${textSizes[size]} font-medium ${isOnline ? 'text-[var(--color-success)]' : 'text-[var(--text-secondary)]'
                         }`}
                 >
                     {isOnline ? 'Online' : formattedLastSeen}

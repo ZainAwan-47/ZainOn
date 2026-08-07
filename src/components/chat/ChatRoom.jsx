@@ -70,7 +70,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         });
     }, []);
 
-    // REALTIME ACKNOWLEDGEMENTS (Now works for Groups too!)
+    // REALTIME ACKNOWLEDGEMENTS
     useEffect(() => {
         if (!conversation?.id || !user?.uid || messages.length === 0)
             return;
@@ -87,7 +87,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
         }
 
-        // 2. Seen Ack (Clears unread counter for groups automatically)
+        // 2. Seen Ack
         const unackedSeen = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -100,14 +100,12 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         }
     }, [conversation?.id, user?.uid, messages, isGroup]);
 
-    // Initial mount scroll
     useLayoutEffect(() => {
         if (!loading && messages.length > 0) {
             scrollToBottom(true);
         }
     }, [loading, conversation?.id, scrollToBottom]);
 
-    // Synchronized smooth scroll on new message entry
     useLayoutEffect(() => {
         if (messages.length > prevMessagesLengthRef.current) {
             const lastMsg = messages[messages.length - 1];
@@ -207,7 +205,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     if (!conversation) return null;
 
     return (
-        <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 overflow-hidden relative">
+        <div className="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-main)] transition-colors duration-300 overflow-hidden relative">
 
             {/* Context Modals */}
             {isGroup && isGroupProfileOpen && (
@@ -218,7 +216,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 />
             )}
 
-            {/* FIX: Let AnimatePresence manage the exit lifecycle */}
             <AnimatePresence>
                 {viewingSeenBy && (
                     <SeenByModal
@@ -229,7 +226,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 )}
             </AnimatePresence>
 
-            {/* FIX: Let AnimatePresence manage the exit lifecycle */}
             <AnimatePresence>
                 {viewingReactions && (
                     <ReactionDetailsModal
@@ -258,35 +254,35 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             >
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full space-y-3">
-                        <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                        <p className="text-xs font-semibold text-slate-400">Loading messages...</p>
+                        <div className="w-7 h-7 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading messages...</p>
                     </div>
                 ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-2 select-none">
                         {isGroup ? (
                             <>
-                                <div className="w-14 h-14 rounded-3xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner mb-1">
+                                <div className="w-14 h-14 rounded-3xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center text-[var(--color-primary)] shadow-inner mb-1">
                                     <span className="text-2xl font-black">#</span>
                                 </div>
-                                <span className="text-xs font-bold text-white">
+                                <span className="text-xs font-bold text-[var(--text-primary)]">
                                     Welcome to {conversation.name || 'Group Workspace'}!
                                 </span>
-                                <p className="text-[11px] text-slate-400 leading-normal max-w-[260px]">
+                                <p className="text-[11px] text-[var(--text-secondary)] leading-normal max-w-[260px]">
                                     This is the beginning of the{' '}
-                                    <span className="text-indigo-400 font-semibold">{conversation.name}</span> group space.
+                                    <span className="text-[var(--color-primary)] font-semibold">{conversation.name}</span> group space.
                                 </p>
                             </>
                         ) : (
                             <>
-                                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 mb-1">
+                                <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-1 shadow-sm">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                     </svg>
                                 </div>
-                                <span className="text-xs font-bold text-slate-300">No Messages Yet</span>
-                                <p className="text-[11px] text-slate-400 leading-normal max-w-[220px]">
+                                <span className="text-xs font-bold text-[var(--text-primary)]">No Messages Yet</span>
+                                <p className="text-[11px] text-[var(--text-secondary)] leading-normal max-w-[220px]">
                                     Send a message to start chatting with{' '}
-                                    <span className="text-white font-semibold">
+                                    <span className="text-[var(--text-primary)] font-semibold">
                                         {otherParticipant.fullName || 'your friend'}
                                     </span>.
                                 </p>
@@ -303,7 +299,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             <React.Fragment key={msg.id}>
                                 {showSeparator && dateLabel && (
                                     <div className="my-3 flex items-center justify-center select-none">
-                                        <span className="px-3 py-1 rounded-full bg-slate-900 border border-slate-800/80 text-[10px] font-bold text-slate-400 uppercase tracking-wider shadow-sm">
+                                        <span className="px-3 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider shadow-sm">
                                             {dateLabel}
                                         </span>
                                     </div>

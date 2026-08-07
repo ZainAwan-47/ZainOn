@@ -18,7 +18,6 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
         setText('');
         if (onCancelReply) onCancelReply();
 
-        // Retain keyboard focus on identical DOM element instance
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             textareaRef.current.focus();
@@ -39,7 +38,7 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
     return (
         <div
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-slate-900 border-t border-slate-800/80 flex flex-col shrink-0 select-none"
+            className="relative bg-[var(--bg-surface)] border-t border-[var(--border-color)] flex flex-col shrink-0 select-none transition-colors duration-300"
         >
             {showEmojiPicker && (
                 <EmojiPicker
@@ -49,22 +48,22 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
             )}
 
             {replyingTo && (
-                <div className="px-4 py-2 bg-slate-800/80 border-b border-slate-700/60 flex items-center justify-between space-x-3 text-xs">
+                <div className="px-4 py-2 bg-[var(--bg-surface-hover)] border-b border-[var(--border-color)] flex items-center justify-between space-x-3 text-xs">
                     <div className="flex items-center space-x-2 min-w-0 flex-1">
-                        <svg className="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-[var(--color-primary)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                         </svg>
                         <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-indigo-300">
+                            <span className="text-[10px] font-bold text-[var(--color-primary)] opacity-90">
                                 Replying to {replyingTo.senderName || 'User'}
                             </span>
-                            <p className="text-slate-300 truncate">{replyingTo.text}</p>
+                            <p className="text-[var(--text-primary)] truncate opacity-80">{replyingTo.text}</p>
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={onCancelReply}
-                        className="text-slate-400 hover:text-white shrink-0 focus:outline-none"
+                        className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0 focus:outline-none transition-colors"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -77,7 +76,7 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                 <button
                     type="button"
                     onClick={() => setShowEmojiPicker((prev) => !prev)}
-                    className="p-2.5 text-slate-400 hover:text-amber-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition-all shrink-0 focus:outline-none"
+                    className="p-2.5 text-[var(--text-secondary)] hover:text-[var(--color-warning)] bg-[var(--bg-surface-hover)]/60 hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all shrink-0 focus:outline-none"
                     title="Add Emoji"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +84,7 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                     </svg>
                 </button>
 
-                <div className="flex-1 bg-slate-800/80 border border-slate-700/60 rounded-2xl focus-within:border-indigo-500/80 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all px-3.5 py-2">
+                <div className="flex-1 bg-[var(--bg-surface-hover)] border border-[var(--border-color)] rounded-2xl focus-within:border-[var(--color-primary)] focus-within:ring-2 focus-within:ring-[var(--color-primary)]/20 transition-all px-3.5 py-2">
                     <textarea
                         ref={textareaRef}
                         value={text}
@@ -94,14 +93,14 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                         placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
                         rows={1}
                         disabled={disabled}
-                        className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none resize-none max-h-28 scrollbar-thin"
+                        className="w-full bg-transparent text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none resize-none max-h-28 scrollbar-thin"
                     />
                 </div>
 
                 <button
                     type="submit"
                     disabled={!text.trim() || disabled}
-                    className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus:outline-none"
+                    className="p-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus:outline-none"
                     title="Send Message"
                 >
                     <svg className="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">

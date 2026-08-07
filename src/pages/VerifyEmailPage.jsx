@@ -27,7 +27,6 @@ export const VerifyEmailPage = () => {
 
         try {
             setChecking(true);
-            // Force Firebase Auth to fetch the latest server claims
             await auth.currentUser.reload();
 
             if (auth.currentUser.emailVerified) {
@@ -53,7 +52,6 @@ export const VerifyEmailPage = () => {
             showToast('Verification email resent! Please check your inbox.', 'info');
             setResendDisabled(true);
 
-            // 60-second rate-limit cooldown timer
             setTimeout(() => setResendDisabled(false), 60000);
         } catch (error) {
             console.error('[VerifyEmailPage.handleResendEmail]:', error);
@@ -78,10 +76,10 @@ export const VerifyEmailPage = () => {
     };
 
     return (
-        <div className="min-h-screen w-screen bg-slate-950 flex flex-col items-center justify-center p-4 select-none">
-            <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center space-y-6">
+        <div className="min-h-screen w-screen theme-navy bg-[var(--bg-main)] text-[var(--text-primary)] flex flex-col items-center justify-center p-4 select-none transition-colors duration-300">
+            <div className="w-full max-w-md bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-3xl p-8 shadow-2xl text-center space-y-6">
                 {/* Mail Icon */}
-                <div className="w-16 h-16 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto ring-1 ring-indigo-500/20">
+                <div className="w-16 h-16 bg-[var(--color-primary)]/10 text-[var(--color-primary)] rounded-2xl flex items-center justify-center mx-auto ring-1 ring-[var(--color-primary)]/20">
                     <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
@@ -89,10 +87,10 @@ export const VerifyEmailPage = () => {
 
                 {/* Content Details */}
                 <div className="space-y-2">
-                    <h1 className="text-xl font-bold text-white tracking-tight">Verify Your Email Address</h1>
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <h1 className="text-xl font-bold tracking-tight">Verify Your Email Address</h1>
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                         We have dispatched a verification link to{' '}
-                        <span className="text-indigo-400 font-semibold">{user?.email}</span>. Please verify your email address to access your workspace.
+                        <span className="text-[var(--color-primary)] font-semibold">{user?.email}</span>. Please verify your email address to access your workspace.
                     </p>
                 </div>
 
@@ -102,7 +100,7 @@ export const VerifyEmailPage = () => {
                         type="button"
                         onClick={handleCheckVerification}
                         disabled={checking}
-                        className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+                        className="w-full py-3 px-4 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
                     >
                         {checking && (
                             <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
@@ -114,18 +112,18 @@ export const VerifyEmailPage = () => {
                         type="button"
                         onClick={handleResendEmail}
                         disabled={resending || resendDisabled}
-                        className="w-full py-3 px-4 bg-slate-800 hover:bg-slate-750 disabled:opacity-50 text-slate-300 border border-slate-700/60 rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer"
+                        className="w-full py-3 px-4 bg-[var(--bg-surface-hover)] disabled:opacity-50 text-[var(--text-primary)] border border-[var(--border-color)] rounded-xl font-bold text-xs transition-all active:scale-95 cursor-pointer"
                     >
                         {resending ? 'Sending...' : resendDisabled ? 'Resend Cooldown Active' : 'Resend Verification Email'}
                     </button>
                 </div>
 
                 {/* Footer Logout */}
-                <div className="pt-4 border-t border-slate-800">
+                <div className="pt-4 border-t border-[var(--border-color)]">
                     <button
                         type="button"
                         onClick={handleLogout}
-                        className="text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                        className="text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                     >
                         Sign out and use a different account
                     </button>
