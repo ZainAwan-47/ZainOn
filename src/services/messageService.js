@@ -76,8 +76,20 @@ export const messageService = {
                 hiddenFor: [],
             };
 
+            // FIX: Increment unread counts correctly for both DMs and Groups
             if (recipientId) {
                 convUpdateData[`unreadCounts.${recipientId}`] = increment(1);
+            } else {
+                // It is a Group: Fetch participants to increment unread count for everyone except sender
+                const convSnap = await getDoc(convRef);
+                if (convSnap.exists()) {
+                    const participants = convSnap.data().participants || {};
+                    Object.keys(participants).forEach((uid) => {
+                        if (uid !== senderId) {
+                            convUpdateData[`unreadCounts.${uid}`] = increment(1);
+                        }
+                    });
+                }
             }
 
             batch.update(convRef, convUpdateData);
@@ -144,10 +156,7 @@ export const messageService = {
         };
     },
 
-    /**
-     * Background delivery receipt update (Grey -> Orange).
-     */
-    markAsDelivered: async (conversationId, recipientUid, undeliveredMessages = []) => {
+    markAsDelivered: async (conversationId, recipientUid, undeliveredMessages = [], isGroup = false) => {
         if (!conversationId || !recipientUid || undeliveredMessages.length === 0) return;
 
         try {
@@ -155,13 +164,15 @@ export const messageService = {
 
             undeliveredMessages.forEach((msg) => {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
-                batch.update(msgRef, { deliveryStatus: 'delivered' });
+                // For groups, we skip global status updates to preserve individual states
+                batch.update(msgRef, {
+                    ...(isGroup ? {} : { deliveryStatus: 'delivered' })
+                });
             });
 
-            // Update parent conversation lastMessage deliveryStatus to update sidebar snapshots instantly
             const convRef = doc(db, 'conversations', conversationId);
             const convSnap = await getDoc(convRef);
-            if (convSnap.exists()) {
+            if (convSnap.exists() && !isGroup) {
                 const convData = convSnap.data();
                 if (
                     convData.lastMessage &&
@@ -179,10 +190,7 @@ export const messageService = {
         }
     },
 
-    /**
-     * Active view read receipt update (Orange -> Green).
-     */
-    markAsSeen: async (conversationId, currentUid, unseenMessages = []) => {
+    markAsSeen: async (conversationId, currentUid, unseenMessages = [], isGroup = false) => {
         if (!conversationId || !currentUid || unseenMessages.length === 0) return;
 
         try {
@@ -191,14 +199,15 @@ export const messageService = {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, {
                     seenBy: arrayUnion(currentUid),
-                    deliveryStatus: 'read',
+                    // FIX: Prevent groups from overwriting global delivery states
+                    ...(isGroup ? {} : { deliveryStatus: 'read' }),
                 });
             });
 
             const convRef = doc(db, 'conversations', conversationId);
             batch.update(convRef, {
                 [`unreadCounts.${currentUid}`]: 0,
-                'lastMessage.deliveryStatus': 'read',
+                ...(isGroup ? {} : { 'lastMessage.deliveryStatus': 'read' }),
             });
 
             await batch.commit();

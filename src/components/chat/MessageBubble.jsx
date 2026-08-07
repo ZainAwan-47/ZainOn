@@ -19,6 +19,7 @@ const SWIPE_UP_SPRING = {
 export const MessageBubble = memo(({
     message,
     isOwn = false,
+    isGroup = false,
     recipientIsOnline = false,
     recipientUid = '',
     currentUid = '',
@@ -27,6 +28,8 @@ export const MessageBubble = memo(({
     onPin,
     onStar,
     isPinned = false,
+    onViewSeenBy,
+    onViewReactions
 }) => {
     const { showToast } = useToast();
     const [showMenu, setShowMenu] = useState(false);
@@ -36,11 +39,16 @@ export const MessageBubble = memo(({
     const isStarred = Boolean(message.isStarred?.[currentUid]);
     const reactionsMap = message.reactions || {};
 
+    // Strict deduplication: calculate exactly how many unique OTHER people saw this
+    const seenByOthersCount = Array.from(new Set(message.seenBy || [])).filter(uid => uid !== message.senderId).length;
+
     // Monotonic Read Receipts - Strictly derived from persisted document status
-    const isSeen = Boolean(
-        (message.seenBy && recipientUid && message.seenBy.includes(recipientUid)) ||
-        message.deliveryStatus === 'read'
-    );
+    const isSeen = isGroup
+        ? Boolean(seenByOthersCount > 0)
+        : Boolean(
+            (message.seenBy && recipientUid && message.seenBy.includes(recipientUid)) ||
+            message.deliveryStatus === 'read'
+        );
 
     // Recipient presence is intentionally excluded so delivered status is 100% irreversible
     const isDelivered = Boolean(
@@ -143,16 +151,16 @@ export const MessageBubble = memo(({
             <div
                 onClick={handleBubbleClick}
                 className={`max-w-[75%] sm:max-w-[65%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm transition-all cursor-pointer relative ${isOwn
-                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white rounded-tr-xs'
-                        : 'bg-slate-800 hover:bg-slate-750 text-slate-100 border border-slate-700/60 rounded-tl-xs'
+                    ? 'bg-indigo-600 hover:bg-indigo-500 text-white rounded-tr-xs'
+                    : 'bg-slate-800 hover:bg-slate-750 text-slate-100 border border-slate-700/60 rounded-tl-xs'
                     } ${showMenu ? 'ring-2 ring-indigo-400/50 shadow-indigo-500/20' : ''
                     }`}
             >
                 {message.replyTo && (
                     <div
                         className={`mb-2 p-2 rounded-xl text-[11px] border-l-2 ${isOwn
-                                ? 'bg-indigo-700/60 border-indigo-300 text-indigo-100'
-                                : 'bg-slate-900/60 border-indigo-500 text-slate-300'
+                            ? 'bg-indigo-700/60 border-indigo-300 text-indigo-100'
+                            : 'bg-slate-900/60 border-indigo-500 text-slate-300'
                             }`}
                     >
                         <span className="font-bold text-[10px] block opacity-80">
@@ -176,26 +184,35 @@ export const MessageBubble = memo(({
 
                     <span>{formattedTime}</span>
 
-                    {/* Tri-State Read Receipts */}
+                    {/* Enhanced Tri-State Read Receipts */}
                     {isOwn && (
-                        <span className="flex items-center pl-0.5">
-                            {isSeen ? (
-                                <span
-                                    className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30"
-                                    title="Seen"
-                                />
-                            ) : isDelivered ? (
-                                <span
-                                    className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30"
-                                    title="Delivered"
-                                />
+                        <div
+                            className="flex items-center pl-0.5"
+                            onClick={(e) => {
+                                if (isGroup) {
+                                    e.stopPropagation();
+                                    onViewSeenBy(message);
+                                }
+                            }}
+                        >
+                            {isGroup ? (
+                                isSeen ? (
+                                    <span className="hover:text-white transition-colors">
+                                        Seen by {seenByOthersCount}
+                                    </span>
+                                ) : (
+                                    <span className="hover:text-white transition-colors">Sent</span>
+                                )
                             ) : (
-                                <span
-                                    className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-400/20"
-                                    title="Sent"
-                                />
+                                isSeen ? (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" title="Seen" />
+                                ) : isDelivered ? (
+                                    <span className="w-2 h-2 rounded-full bg-amber-400 ring-2 ring-amber-400/30" title="Delivered" />
+                                ) : (
+                                    <span className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-400/20" title="Sent" />
+                                )
                             )}
-                        </span>
+                        </div>
                     )}
                 </div>
             </div>
@@ -215,11 +232,11 @@ export const MessageBubble = memo(({
                                 type="button"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onReact(message.id, emoji);
+                                    onViewReactions(message);
                                 }}
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 transition-all active:scale-95 cursor-pointer ${hasReacted
-                                        ? 'bg-indigo-950/80 border-indigo-500 text-indigo-300'
-                                        : 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700'
+                                    ? 'bg-indigo-950/80 border-indigo-500 text-indigo-300'
+                                    : 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700'
                                     }`}
                             >
                                 <span>{emoji}</span>

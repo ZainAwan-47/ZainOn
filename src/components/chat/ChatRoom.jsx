@@ -8,6 +8,9 @@ import React, {
     memo,
 } from 'react';
 
+// Third Party
+import { AnimatePresence } from 'framer-motion';
+
 // Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
@@ -22,6 +25,8 @@ import ChatHeader from './ChatHeader';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import GroupProfileModal from '../groups/GroupProfileModal';
+import SeenByModal from './SeenByModal';
+import ReactionDetailsModal from './ReactionDetailsModal';
 
 export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const { user } = useAuth();
@@ -40,6 +45,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     const [replyingTo, setReplyingTo] = useState(null);
     const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
+
+    // Modal States
+    const [viewingSeenBy, setViewingSeenBy] = useState(null);
+    const [viewingReactions, setViewingReactions] = useState(null);
 
     const { messages, loading, sendMessage } = useMessages(
         conversation?.id,
@@ -61,12 +70,12 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         });
     }, []);
 
-    // REALTIME ACKNOWLEDGEMENTS (1-on-1 direct chats only)
+    // REALTIME ACKNOWLEDGEMENTS (Now works for Groups too!)
     useEffect(() => {
-        if (!conversation?.id || !user?.uid || messages.length === 0 || isGroup)
+        if (!conversation?.id || !user?.uid || messages.length === 0)
             return;
 
-        // 1. Delivery Ack (Gray -> Orange)
+        // 1. Delivery Ack
         const unackedDelivered = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -75,10 +84,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         );
         if (unackedDelivered.length > 0) {
             unackedDelivered.forEach((m) => ackedDeliveredIdsRef.current.add(m.id));
-            messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered);
+            messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
         }
 
-        // 2. Seen Ack (Orange -> Green)
+        // 2. Seen Ack (Clears unread counter for groups automatically)
         const unackedSeen = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -87,7 +96,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         );
         if (unackedSeen.length > 0) {
             unackedSeen.forEach((m) => ackedSeenIdsRef.current.add(m.id));
-            messageService.markAsSeen(conversation.id, user.uid, unackedSeen);
+            messageService.markAsSeen(conversation.id, user.uid, unackedSeen, isGroup);
         }
     }, [conversation?.id, user?.uid, messages, isGroup]);
 
@@ -199,7 +208,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 bg-slate-950 overflow-hidden relative">
-            {/* Group Profile Info Modal */}
+
+            {/* Context Modals */}
             {isGroup && isGroupProfileOpen && (
                 <GroupProfileModal
                     group={conversation}
@@ -207,6 +217,28 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     onClose={() => setIsGroupProfileOpen(false)}
                 />
             )}
+
+            {/* FIX: Let AnimatePresence manage the exit lifecycle */}
+            <AnimatePresence>
+                {viewingSeenBy && (
+                    <SeenByModal
+                        message={viewingSeenBy}
+                        participants={conversation.participants}
+                        onClose={() => setViewingSeenBy(null)}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* FIX: Let AnimatePresence manage the exit lifecycle */}
+            <AnimatePresence>
+                {viewingReactions && (
+                    <ReactionDetailsModal
+                        message={viewingReactions}
+                        participants={conversation.participants}
+                        onClose={() => setViewingReactions(null)}
+                    />
+                )}
+            </AnimatePresence>
 
             {/* Header */}
             <ChatHeader
@@ -279,6 +311,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                 <MessageBubble
                                     message={msg}
                                     isOwn={msg.senderId === user?.uid}
+                                    isGroup={isGroup}
                                     recipientIsOnline={isGroup ? false : otherParticipant.isOnline}
                                     recipientUid={isGroup ? '' : otherParticipant.uid}
                                     currentUid={user?.uid}
@@ -287,6 +320,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                     onPin={handleTogglePin}
                                     onStar={handleToggleStar}
                                     isPinned={conversation.pinnedMessage?.id === msg.id}
+                                    onViewSeenBy={setViewingSeenBy}
+                                    onViewReactions={setViewingReactions}
                                 />
                             </React.Fragment>
                         );
