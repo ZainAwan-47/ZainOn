@@ -1,10 +1,12 @@
 // React
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, useEffect, memo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 // Third Party Libraries
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Services & Hooks
+import { db } from '../../firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { groupService } from '../../services/groupService';
 import { useToast } from '../../context/ToastContext';
@@ -19,6 +21,159 @@ import PresenceIndicator from '../ui/PresenceIndicator';
 import InviteMembersModal from './InviteMembersModal';
 import FriendActionButton from '../friends/FriendActionButton';
 import ProfilePreviewModal from '../friends/ProfilePreviewModal';
+
+// Sub-component to guarantee LIVE presence and privacy for each member
+const GroupMemberItem = memo(({
+    member,
+    realtimeGroup,
+    currentUserUid,
+    friends,
+    isAdmin,
+    isOwner,
+    onRoleChange,
+    onRemove,
+    onTransfer,
+    onSelectProfile
+}) => {
+    const isSelf = member.uid === currentUserUid;
+    const [liveUser, setLiveUser] = useState(member);
+
+    // Attach real-time snapshot for this specific member
+    useEffect(() => {
+        if (isSelf) return;
+        const unsub = onSnapshot(doc(db, 'users', member.uid || member.id), (snap) => {
+            if (snap.exists()) setLiveUser({ ...snap.data(), uid: snap.id });
+        });
+        return () => unsub();
+    }, [isSelf, member.uid, member.id]);
+
+    const role = realtimeGroup.roles?.[liveUser.uid] || GROUP_ROLES.MEMBER;
+    const isMemberOwner = role === GROUP_ROLES.OWNER;
+    const isMemberAdmin = role === GROUP_ROLES.ADMIN;
+    const displayName = liveUser.fullName || liveUser.displayName || liveUser.username || 'User';
+
+    // Strict Privacy Logic Cascading
+    const isFriend = friends.some(f => (f.uid || f.id) === liveUser.uid);
+    const onlineStatusEnabled = liveUser.privacy?.onlineStatus !== false;
+    const isOnlineEffective = isSelf ? true : (onlineStatusEnabled ? liveUser.isOnline : false);
+
+    const lastSeenSetting = liveUser.privacy?.lastSeen || 'everyone';
+    let lastSeenEffective = liveUser.lastSeen;
+    if (lastSeenSetting === 'nobody') lastSeenEffective = null;
+    else if (lastSeenSetting === 'friends' && !isFriend) lastSeenEffective = null;
+    if (isSelf) lastSeenEffective = null; // Do not show last seen for yourself
+
+    return (
+        <div className="p-2.5 rounded-2xl bg-[var(--bg-main)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 transition-colors duration-300">
+            <div
+                className={`flex items-center space-x-2.5 flex-1 min-w-[150px] p-1 -ml-1 rounded-xl transition-colors ${!isSelf ? 'cursor-pointer hover:bg-[var(--bg-surface-hover)]' : ''}`}
+                onClick={() => !isSelf && onSelectProfile(liveUser)}
+                title={!isSelf ? "View Profile" : ""}
+            >
+                <Avatar
+                    src={liveUser.photoURL}
+                    name={displayName}
+                    size="sm"
+                    isOnline={isOnlineEffective}
+                />
+                <div className="flex flex-col min-w-0">
+                    <div className="flex items-center space-x-1.5">
+                        <span className="text-xs font-bold text-[var(--text-primary)] truncate">
+                            {displayName}
+                        </span>
+                        {isSelf && <span className="text-[9px] text-[var(--color-primary)] font-bold shrink-0">(You)</span>}
+                    </div>
+                    <span className="text-[10px] text-[var(--text-secondary)] truncate">
+                        @{liveUser.username || 'user'}
+                    </span>
+                    <div className="mt-0.5">
+                        <PresenceIndicator
+                            isOnline={isOnlineEffective}
+                            lastSeen={lastSeenEffective}
+                            size="sm"
+                            onlineStatusEnabled={onlineStatusEnabled}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0 ml-auto">
+                {!isSelf && (
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <FriendActionButton targetUser={liveUser} />
+                    </div>
+                )}
+
+                <span
+                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${isMemberOwner
+                        ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border border-[var(--color-warning)]/20'
+                        : isMemberAdmin
+                            ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20'
+                            : 'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]'
+                        }`}
+                >
+                    {role}
+                </span>
+
+                {!isSelf && (
+                    <div className="flex items-center space-x-1 shrink-0">
+                        {isOwner && (
+                            <>
+                                {!isMemberAdmin ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRoleChange(liveUser.uid, GROUP_ROLES.ADMIN)}
+                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer"
+                                        title="Promote to Admin"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
+                                        </svg>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => onRoleChange(liveUser.uid, GROUP_ROLES.MEMBER)}
+                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-warning)] transition-colors cursor-pointer"
+                                        title="Demote to Member"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
+                                        </svg>
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => onTransfer(liveUser.uid)}
+                                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-success)] transition-colors cursor-pointer"
+                                    title="Transfer Ownership"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                </button>
+                            </>
+                        )}
+
+                        {isAdmin && !isMemberOwner && (
+                            <button
+                                type="button"
+                                onClick={() => onRemove(liveUser.uid)}
+                                className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer"
+                                title="Remove Member"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
 
 export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
     const { user } = useAuth();
@@ -202,7 +357,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                             type="button"
                                             disabled={loadingAction}
                                             onClick={() => setShowDeleteConfirm(false)}
-                                            className="flex-1 py-2 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--text-primary)] rounded-xl text-xs font-bold border border-[var(--border-color)] transition-all"
+                                            className="flex-1 py-2 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--text-primary)] rounded-xl text-xs font-bold border border-[var(--border-color)] transition-all cursor-pointer"
                                         >
                                             Cancel
                                         </button>
@@ -210,7 +365,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                             type="button"
                                             disabled={loadingAction}
                                             onClick={handleConfirmDeleteGroup}
-                                            className="flex-1 py-2 bg-[var(--color-danger)] hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                                            className="flex-1 py-2 bg-[var(--color-danger)] hover:opacity-90 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
                                         >
                                             {loadingAction ? 'Deleting...' : 'Confirm Delete'}
                                         </button>
@@ -232,19 +387,19 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                                     type="text"
                                                     value={name}
                                                     onChange={(e) => setName(e.target.value)}
-                                                    className="w-full px-3 py-1.5 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)]"
+                                                    className="w-full px-3 py-1.5 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
                                                 />
                                                 <textarea
                                                     rows="2"
                                                     value={description}
                                                     onChange={(e) => setDescription(e.target.value)}
-                                                    className="w-full px-3 py-1.5 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)] resize-none"
+                                                    className="w-full px-3 py-1.5 bg-[var(--bg-main)] border border-[var(--border-color)] rounded-xl text-xs text-[var(--text-primary)] resize-none focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
                                                 />
                                                 <div className="flex justify-end space-x-2">
                                                     <button
                                                         type="button"
                                                         onClick={() => setEditing(false)}
-                                                        className="px-3 py-1 bg-[var(--bg-surface-hover)] text-xs font-semibold rounded-lg text-[var(--text-secondary)] border border-[var(--border-color)]"
+                                                        className="px-3 py-1 bg-[var(--bg-surface-hover)] text-xs font-semibold rounded-lg text-[var(--text-secondary)] border border-[var(--border-color)] cursor-pointer"
                                                     >
                                                         Cancel
                                                     </button>
@@ -252,7 +407,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                                         type="button"
                                                         disabled={loadingAction}
                                                         onClick={handleSaveMetadata}
-                                                        className="px-3 py-1 bg-[var(--color-primary)] text-xs font-semibold rounded-lg text-white"
+                                                        className="px-3 py-1 bg-[var(--color-primary)] text-xs font-semibold rounded-lg text-white cursor-pointer"
                                                     >
                                                         Save
                                                     </button>
@@ -306,7 +461,7 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                         </div>
                                     )}
 
-                                    {/* Members Section */}
+                                    {/* Members Section (LIVE PRESENCE SYNC) */}
                                     <div className="pt-2 border-t border-[var(--border-color)]">
                                         <span className="block text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">
                                             Members List ({memberList.length})
@@ -316,141 +471,21 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                                             {memberList.length === 0 ? (
                                                 <div className="py-4 text-center text-xs text-[var(--text-secondary)]">No members found.</div>
                                             ) : (
-                                                memberList.map((member) => {
-                                                    const role = realtimeGroup.roles?.[member.uid] || GROUP_ROLES.MEMBER;
-                                                    const isMemberOwner = role === GROUP_ROLES.OWNER;
-                                                    const isMemberAdmin = role === GROUP_ROLES.ADMIN;
-
-                                                    const isSelf = member.uid === user?.uid;
-                                                    const liveFriend = friends.find(f => (f.uid || f.id) === member.uid);
-
-                                                    const isOnline = isSelf
-                                                        ? (user?.isOnline ?? true)
-                                                        : (liveFriend ? liveFriend.isOnline : member.isOnline);
-
-                                                    const lastSeen = isSelf
-                                                        ? null
-                                                        : (liveFriend ? liveFriend.lastSeen : member.lastSeen);
-
-                                                    const displayName = member.fullName || member.displayName || member.username || 'User';
-
-                                                    return (
-                                                        <div
-                                                            key={member.uid}
-                                                            className="p-2.5 rounded-2xl bg-[var(--bg-main)] border border-[var(--border-color)] flex flex-wrap items-center justify-between gap-2 transition-colors duration-300"
-                                                        >
-                                                            <div
-                                                                className={`flex items-center space-x-2.5 flex-1 min-w-[150px] p-1 -ml-1 rounded-xl transition-colors ${!isSelf ? 'cursor-pointer hover:bg-[var(--bg-surface-hover)]' : ''}`}
-                                                                onClick={() => !isSelf && setSelectedMemberProfile(member)}
-                                                                title={!isSelf ? "View Profile" : ""}
-                                                            >
-                                                                <Avatar
-                                                                    src={member.photoURL}
-                                                                    name={displayName}
-                                                                    size="sm"
-                                                                    isOnline={isOnline}
-                                                                />
-                                                                <div className="flex flex-col min-w-0">
-                                                                    <div className="flex items-center space-x-1.5">
-                                                                        <span className="text-xs font-bold text-[var(--text-primary)] truncate">
-                                                                            {displayName}
-                                                                        </span>
-                                                                        {isSelf && <span className="text-[9px] text-[var(--color-primary)] font-bold shrink-0">(You)</span>}
-                                                                    </div>
-                                                                    <span className="text-[10px] text-[var(--text-secondary)] truncate">
-                                                                        @{member.username || 'user'}
-                                                                    </span>
-                                                                    <div className="mt-0.5">
-                                                                        <PresenceIndicator
-                                                                            isOnline={isOnline}
-                                                                            lastSeen={lastSeen}
-                                                                            size="sm"
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex items-center space-x-2 shrink-0 ml-auto">
-                                                                {!isSelf && (
-                                                                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                                                                        <FriendActionButton targetUser={member} />
-                                                                    </div>
-                                                                )}
-
-                                                                <span
-                                                                    className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${isMemberOwner
-                                                                        ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)] border border-[var(--color-warning)]/20'
-                                                                        : isMemberAdmin
-                                                                            ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20'
-                                                                            : 'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]'
-                                                                        }`}
-                                                                >
-                                                                    {role}
-                                                                </span>
-
-                                                                {!isSelf && (
-                                                                    <div className="flex items-center space-x-1 shrink-0">
-                                                                        {isOwner && (
-                                                                            <>
-                                                                                {!isMemberAdmin ? (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        disabled={loadingAction}
-                                                                                        onClick={() => handleRoleChange(member.uid, GROUP_ROLES.ADMIN)}
-                                                                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer disabled:opacity-50"
-                                                                                        title="Promote to Admin"
-                                                                                    >
-                                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 11l3-3m0 0l3 3m-3-3v8m0-13a9 9 0 110 18 9 9 0 010-18z" />
-                                                                                        </svg>
-                                                                                    </button>
-                                                                                ) : (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        disabled={loadingAction}
-                                                                                        onClick={() => handleRoleChange(member.uid, GROUP_ROLES.MEMBER)}
-                                                                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-warning)] transition-colors cursor-pointer disabled:opacity-50"
-                                                                                        title="Demote to Member"
-                                                                                    >
-                                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 13a9 9 0 110-18 9 9 0 010 18z" />
-                                                                                        </svg>
-                                                                                    </button>
-                                                                                )}
-
-                                                                                <button
-                                                                                    type="button"
-                                                                                    disabled={loadingAction}
-                                                                                    onClick={() => handleTransferOwnership(member.uid)}
-                                                                                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-success)] transition-colors cursor-pointer disabled:opacity-50"
-                                                                                    title="Transfer Ownership"
-                                                                                >
-                                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                                                                    </svg>
-                                                                                </button>
-                                                                            </>
-                                                                        )}
-
-                                                                        {isAdmin && !isMemberOwner && (
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled={loadingAction}
-                                                                                onClick={() => handleRemoveMember(member.uid)}
-                                                                                className="p-1 text-[var(--text-secondary)] hover:text-[var(--color-danger)] transition-colors cursor-pointer disabled:opacity-50"
-                                                                                title="Remove Member"
-                                                                            >
-                                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                                </svg>
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
+                                                memberList.map((member) => (
+                                                    <GroupMemberItem
+                                                        key={member.uid || member.id}
+                                                        member={member}
+                                                        realtimeGroup={realtimeGroup}
+                                                        currentUserUid={user?.uid}
+                                                        friends={friends}
+                                                        isAdmin={isAdmin}
+                                                        isOwner={isOwner}
+                                                        onRoleChange={handleRoleChange}
+                                                        onRemove={handleRemoveMember}
+                                                        onTransfer={handleTransferOwnership}
+                                                        onSelectProfile={setSelectedMemberProfile}
+                                                    />
+                                                ))
                                             )}
                                         </div>
                                     </div>
@@ -486,7 +521,6 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                 </div>
             </AnimatePresence>
 
-            {/* Invite Modal Layer */}
             {isInviteModalOpen && (
                 <InviteMembersModal
                     group={realtimeGroup}
@@ -495,7 +529,6 @@ export const GroupProfileModal = memo(({ group, isOpen, onClose }) => {
                 />
             )}
 
-            {/* Member Profile Preview Modal */}
             {selectedMemberProfile && (
                 <ProfilePreviewModal
                     targetUser={selectedMemberProfile}

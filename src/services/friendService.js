@@ -2,14 +2,15 @@
 import {
     collection,
     doc,
-    setDoc,
-    deleteDoc,
     getDoc,
-    onSnapshot,
+    getDocs,
     writeBatch,
     serverTimestamp,
     query,
     where,
+    onSnapshot,
+    deleteDoc,
+    setDoc
 } from 'firebase/firestore';
 
 // Firebase
@@ -20,11 +21,46 @@ export const friendService = {
         return `${senderUid}_${receiverUid}`;
     },
 
+    // NEW: Deep backend check for Friends of Friends
+    checkIsFriendOfFriend: async (uidA, uidB) => {
+        if (!uidA || !uidB) return false;
+        try {
+            const friendsASnap = await getDocs(collection(db, 'users', uidA, 'friends'));
+            for (const docSnap of friendsASnap.docs) {
+                const sharedFriendId = docSnap.id;
+                const bFriendRef = doc(db, 'users', uidB, 'friends', sharedFriendId);
+                const bFriendSnap = await getDoc(bFriendRef);
+                if (bFriendSnap.exists()) return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('[checkIsFriendOfFriend]:', error);
+            return false;
+        }
+    },
+
     sendFriendRequest: async (senderUid, receiverUid) => {
         if (!senderUid || !receiverUid || senderUid === receiverUid) {
             throw new Error('Invalid request parameters.');
         }
         try {
+            // Strictly enforce receiver's privacy settings before dispatching
+            const receiverDoc = await getDoc(doc(db, 'users', receiverUid));
+            if (receiverDoc.exists()) {
+                const receiverPrivacy = receiverDoc.data().privacy || {};
+
+                if (receiverPrivacy.friendRequests === 'nobody') {
+                    throw new Error('This user is not accepting friend requests.');
+                }
+
+                if (receiverPrivacy.friendRequests === 'friends_of_friends') {
+                    const isFoF = await friendService.checkIsFriendOfFriend(senderUid, receiverUid);
+                    if (!isFoF) {
+                        throw new Error('You must share a mutual friend to send a request.');
+                    }
+                }
+            }
+
             const friendDocRef = doc(db, 'users', senderUid, 'friends', receiverUid);
             const friendSnap = await getDoc(friendDocRef);
             if (friendSnap.exists()) {
@@ -59,26 +95,20 @@ export const friendService = {
         }
     },
 
-    /**
-     * Accepts an incoming friend request atomically across both user subcollections.
-     */
     acceptFriendRequest: async (requestId, senderUid, receiverUid) => {
         if (!requestId || !senderUid || !receiverUid) return;
         try {
             const batch = writeBatch(db);
 
-            // 1. Delete request doc
             const requestRef = doc(db, 'friendRequests', requestId);
             batch.delete(requestRef);
 
-            // 2. Add friend record to sender's subcollection
             const senderFriendRef = doc(db, 'users', senderUid, 'friends', receiverUid);
             batch.set(senderFriendRef, {
                 friendUid: receiverUid,
                 createdAt: serverTimestamp(),
             });
 
-            // 3. Add friend record to receiver's subcollection
             const receiverFriendRef = doc(db, 'users', receiverUid, 'friends', senderUid);
             batch.set(receiverFriendRef, {
                 friendUid: senderUid,
@@ -89,7 +119,6 @@ export const friendService = {
         } catch (error) {
             console.warn('[acceptFriendRequest batch failed, executing sequential fallback]:', error);
             try {
-                // Fallback sequential execution if batch fails
                 const requestRef = doc(db, 'friendRequests', requestId);
                 await deleteDoc(requestRef);
 
@@ -173,6 +202,7 @@ export const friendService = {
                         (userSnap) => {
                             if (userSnap.exists()) {
                                 const data = userSnap.data();
+                                const privacy = data.privacy || {};
                                 friendProfilesMap.set(friendUid, {
                                     uid: data.uid,
                                     fullName: data.fullName || 'User',
@@ -180,8 +210,9 @@ export const friendService = {
                                     photoURL: data.photoURL || '',
                                     bio: data.bio || '',
                                     status: data.status || '',
-                                    isOnline: Boolean(data.isOnline),
-                                    lastSeen: data.lastSeen || null,
+                                    isOnline: privacy.onlineStatus === false ? false : Boolean(data.isOnline),
+                                    lastSeen: privacy.lastSeen === 'nobody' ? null : (data.lastSeen || null),
+                                    privacy: privacy
                                 });
                             } else {
                                 friendProfilesMap.delete(friendUid);

@@ -3,11 +3,15 @@ import React, { useState, useRef, memo } from 'react';
 
 // Components
 import EmojiPicker from './EmojiPicker';
+import { useAuth } from '../../hooks/useAuth';
 
 export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled = false }) => {
+    const { user } = useAuth();
     const [text, setText] = useState('');
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const textareaRef = useRef(null);
+
+    const enterToSend = user?.chatPrefs?.enterToSend ?? true;
 
     const handleSubmit = (e) => {
         if (e) e.preventDefault();
@@ -25,9 +29,13 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
     };
 
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit(e);
+        if (e.key === 'Enter') {
+            if (enterToSend && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+            }
+            // If enterToSend is false, or if shiftKey is pressed, 
+            // we do nothing here so the textarea naturally inserts a newline.
         }
     };
 
@@ -72,11 +80,11 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                 </div>
             )}
 
-            <form onSubmit={handleSubmit} className="p-3 flex items-end space-x-2">
+            <div className="p-3 flex items-end space-x-2">
                 <button
                     type="button"
                     onClick={() => setShowEmojiPicker((prev) => !prev)}
-                    className="p-2.5 text-[var(--text-secondary)] hover:text-[var(--color-warning)] bg-[var(--bg-surface-hover)]/60 hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all shrink-0 focus:outline-none"
+                    className="p-2.5 text-[var(--text-secondary)] hover:text-[var(--color-warning)] bg-[var(--bg-surface-hover)]/60 hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all shrink-0 focus:outline-none cursor-pointer"
                     title="Add Emoji"
                 >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -90,7 +98,7 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                         value={text}
                         onChange={(e) => setText(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type a message... (Press Enter to send, Shift+Enter for newline)"
+                        placeholder={enterToSend ? "Type a message... (Enter to send)" : "Type a message... (Shift+Enter for newline)"}
                         rows={1}
                         disabled={disabled}
                         className="w-full bg-transparent text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none resize-none max-h-28 scrollbar-thin"
@@ -98,16 +106,17 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                 </div>
 
                 <button
-                    type="submit"
+                    type="button"
+                    onClick={handleSubmit}
                     disabled={!text.trim() || disabled}
-                    className="p-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus:outline-none"
+                    className="p-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-2xl shadow-md transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shrink-0 focus:outline-none cursor-pointer"
                     title="Send Message"
                 >
                     <svg className="w-4 h-4 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
                 </button>
-            </form>
+            </div>
         </div>
     );
 });

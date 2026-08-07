@@ -15,6 +15,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
 import { messageService } from '../../services/messageService';
+import { friendService } from '../../services/friendService';
 import {
     getDateSeparatorLabel,
     shouldShowDateSeparator,
@@ -38,28 +39,33 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const chatContainerRef = useRef(null);
     const prevMessagesLengthRef = useRef(0);
     const isNearBottomRef = useRef(true);
-
-    // Acknowledgement Deduplication Refs
     const ackedDeliveredIdsRef = useRef(new Set());
-    const ackedSeenIdsRef = useRef(new Set());
 
     const [replyingTo, setReplyingTo] = useState(null);
     const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
+    const [showScrollBadge, setShowScrollBadge] = useState(false);
+    const [isFriend, setIsFriend] = useState(true);
 
     // Modal States
     const [viewingSeenBy, setViewingSeenBy] = useState(null);
     const [viewingReactions, setViewingReactions] = useState(null);
 
-    const { messages, loading, sendMessage } = useMessages(
+    const { messages, loading } = useMessages(
         conversation?.id,
         isGroup ? undefined : otherParticipant.uid
     );
 
-    const handleScroll = useCallback(() => {
-        if (!chatContainerRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-        isNearBottomRef.current = scrollHeight - scrollTop - clientHeight < 150;
-    }, []);
+    useEffect(() => {
+        if (isGroup || !user?.uid || !otherParticipant?.uid) return;
+        const unsub = friendService.subscribeToFriendshipStatus(
+            user.uid,
+            otherParticipant.uid,
+            (status) => {
+                setIsFriend(status === 'FRIENDS');
+            }
+        );
+        return () => unsub();
+    }, [user?.uid, otherParticipant?.uid, isGroup]);
 
     const scrollToBottom = useCallback((instant = false) => {
         if (!chatContainerRef.current) return;
@@ -68,14 +74,15 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             top: container.scrollHeight,
             behavior: instant ? 'auto' : 'smooth',
         });
+        isNearBottomRef.current = true;
+        setShowScrollBadge(false);
     }, []);
 
-    // REALTIME ACKNOWLEDGEMENTS
-    useEffect(() => {
-        if (!conversation?.id || !user?.uid || messages.length === 0)
-            return;
+    const processAcknowledgements = useCallback(() => {
+        if (!conversation?.id || !user?.uid || messages.length === 0) return;
 
-        // 1. Delivery Ack
+        const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
+
         const unackedDelivered = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
@@ -87,44 +94,82 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
         }
 
-        // 2. Seen Ack
-        const unackedSeen = messages.filter(
+        const unconsumed = messages.filter(
             (m) =>
                 m.senderId !== user.uid &&
-                (!m.seenBy || !m.seenBy.includes(user.uid)) &&
-                !ackedSeenIdsRef.current.has(m.id)
+                (!m.consumedBy || !m.consumedBy.includes(user.uid))
         );
-        if (unackedSeen.length > 0) {
-            unackedSeen.forEach((m) => ackedSeenIdsRef.current.add(m.id));
-            messageService.markAsSeen(conversation.id, user.uid, unackedSeen, isGroup);
+
+        if (unconsumed.length > 0) {
+            if (readReceiptsEnabled) {
+                messageService.markAsSeen(conversation.id, user.uid, unconsumed, isGroup);
+            } else {
+                messageService.markAsConsumedOnly(conversation.id, user.uid, unconsumed);
+            }
         }
-    }, [conversation?.id, user?.uid, messages, isGroup]);
+    }, [conversation?.id, user?.uid, messages, isGroup, user?.privacy?.readReceipts]);
+
+    const handleScroll = useCallback(() => {
+        if (!chatContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+
+        const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
+        const threshold = autoScrollEnabled ? 250 : 150;
+
+        const isNearBottom = scrollHeight - scrollTop - clientHeight <= threshold;
+
+        isNearBottomRef.current = isNearBottom;
+
+        if (isNearBottom) {
+            if (showScrollBadge) setShowScrollBadge(false);
+            processAcknowledgements();
+        }
+    }, [showScrollBadge, processAcknowledgements, user?.chatPrefs?.autoScroll]);
+
+    useEffect(() => {
+        if (isNearBottomRef.current) {
+            processAcknowledgements();
+        }
+    }, [messages, processAcknowledgements]);
 
     useLayoutEffect(() => {
-        if (!loading && messages.length > 0) {
+        if (!loading && messages.length > 0 && prevMessagesLengthRef.current === 0) {
             scrollToBottom(true);
         }
-    }, [loading, conversation?.id, scrollToBottom]);
+    }, [loading, messages.length, scrollToBottom]);
 
     useLayoutEffect(() => {
-        if (messages.length > prevMessagesLengthRef.current) {
+        if (messages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
             const lastMsg = messages[messages.length - 1];
             const isOwnMsg = lastMsg?.senderId === user?.uid;
+
             if (isOwnMsg || isNearBottomRef.current) {
-                requestAnimationFrame(() => {
-                    scrollToBottom(false);
-                });
+                requestAnimationFrame(() => scrollToBottom(false));
+            } else {
+                setShowScrollBadge(true);
             }
         }
         prevMessagesLengthRef.current = messages.length;
     }, [messages, user?.uid, scrollToBottom]);
 
     const handleSendWithReply = useCallback(
-        (text, replyToMsg) => {
-            sendMessage(text, replyToMsg);
-            setReplyingTo(null);
+        async (text, replyToMsg) => {
+            try {
+                await messageService.sendMessage(
+                    conversation.id,
+                    user.uid,
+                    text,
+                    isGroup ? null : otherParticipant.uid,
+                    replyToMsg,
+                    isFriend // Pass friendship status directly to the backend function
+                );
+                setReplyingTo(null);
+                scrollToBottom(false);
+            } catch (error) {
+                console.error("Failed to send message:", error);
+            }
         },
-        [sendMessage]
+        [conversation?.id, user?.uid, isGroup, otherParticipant.uid, isFriend, scrollToBottom]
     );
 
     const handleCancelReply = useCallback(() => {
@@ -204,10 +249,13 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     if (!conversation) return null;
 
+    // Strict evaluation against the unbreakable database map counter per user
+    const myNonFriendCount = conversation.nonFriendMessageCounts?.[user?.uid] || 0;
+    const isLimitReached = !isGroup && !isFriend && myNonFriendCount >= 5;
+
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-main)] transition-colors duration-300 overflow-hidden relative">
 
-            {/* Context Modals */}
             {isGroup && isGroupProfileOpen && (
                 <GroupProfileModal
                     group={conversation}
@@ -236,7 +284,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 )}
             </AnimatePresence>
 
-            {/* Header */}
             <ChatHeader
                 conversation={conversation}
                 participant={otherParticipant}
@@ -246,11 +293,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 onCloseChat={onCloseChat}
             />
 
-            {/* Message Area Canvas */}
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin"
+                className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin relative"
             >
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full space-y-3">
@@ -308,7 +354,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                     message={msg}
                                     isOwn={msg.senderId === user?.uid}
                                     isGroup={isGroup}
-                                    recipientIsOnline={isGroup ? false : otherParticipant.isOnline}
                                     recipientUid={isGroup ? '' : otherParticipant.uid}
                                     currentUid={user?.uid}
                                     onReact={handleToggleReaction}
@@ -325,12 +370,38 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 )}
             </div>
 
-            <MessageInput
-                onSend={handleSendWithReply}
-                replyingTo={replyingTo}
-                onCancelReply={handleCancelReply}
-                disabled={false}
-            />
+            {showScrollBadge && (
+                <button
+                    onClick={() => scrollToBottom(false)}
+                    className="absolute bottom-[88px] right-6 w-10 h-10 bg-[var(--color-primary)] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[var(--color-primary-hover)] transition-all z-20 animate-bounce cursor-pointer"
+                    title="New messages below"
+                >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                </button>
+            )}
+
+            {isLimitReached ? (
+                <div className="p-4 bg-[var(--bg-surface)] border-t border-[var(--border-color)] flex flex-col items-center justify-center space-y-1.5 text-center select-none">
+                    <div className="w-8 h-8 rounded-full bg-[var(--color-warning)]/10 flex items-center justify-center text-[var(--color-warning)] mb-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <span className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-wider">Limit Reached</span>
+                    <p className="text-[10px] text-[var(--text-secondary)] max-w-xs leading-relaxed">
+                        You can only send 5 messages to non-friends. Send them a friend request to continue this conversation.
+                    </p>
+                </div>
+            ) : (
+                <MessageInput
+                    onSend={handleSendWithReply}
+                    replyingTo={replyingTo}
+                    onCancelReply={handleCancelReply}
+                    disabled={false}
+                />
+            )}
         </div>
     );
 });

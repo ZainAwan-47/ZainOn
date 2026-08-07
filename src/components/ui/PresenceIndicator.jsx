@@ -9,7 +9,11 @@ export const PresenceIndicator = ({
     lastSeen = null,
     showText = true,
     size = 'md',
+    onlineStatusEnabled = true,
 }) => {
+    // If user's online status setting is entirely off, display absolutely nothing.
+    if (!onlineStatusEnabled) return null;
+
     const dotSizes = {
         sm: 'w-2 h-2',
         md: 'w-2.5 h-2.5',
@@ -22,7 +26,8 @@ export const PresenceIndicator = ({
         lg: 'text-sm',
     };
 
-    const formattedLastSeen = formatLastSeen(lastSeen);
+    // Force strictly "Offline" if lastSeen is null (hidden by privacy rules)
+    const formattedLastSeen = lastSeen ? formatLastSeen(lastSeen) : 'Offline';
 
     return (
         <div className="flex items-center space-x-1.5 select-none">

@@ -1,5 +1,13 @@
 // React
-import React, { memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+// Firebase
+import { db } from '../../firebase/firestore';
+
+// Hooks & Services
+import { useAuth } from '../../hooks/useAuth';
+import { friendService } from '../../services/friendService';
 
 // Components
 import Avatar from '../ui/Avatar';
@@ -14,17 +22,55 @@ export const ChatHeader = memo(({
     onViewProfile,
     onCloseChat,
 }) => {
+    const { user } = useAuth();
     const isGroup = conversation?.type === 'group';
-    const effectiveParticipant = participant || conversation?.otherParticipant || null;
 
-    if (!isGroup && !effectiveParticipant) return null;
+    const [liveParticipant, setLiveParticipant] = useState(participant || conversation?.otherParticipant || null);
+    const [isFriend, setIsFriend] = useState(true);
+
+    // Fetch real-time updates for the direct message participant
+    useEffect(() => {
+        if (isGroup || !liveParticipant?.uid) return;
+        const unsub = onSnapshot(doc(db, 'users', liveParticipant.uid), (docSnap) => {
+            if (docSnap.exists()) {
+                setLiveParticipant({ uid: docSnap.id, ...docSnap.data() });
+            }
+        });
+        return () => unsub();
+    }, [isGroup, liveParticipant?.uid]);
+
+    // Live Friendship status for Last Seen logic
+    useEffect(() => {
+        if (isGroup || !user?.uid || !liveParticipant?.uid) return;
+        const unsub = friendService.subscribeToFriendshipStatus(
+            user.uid,
+            liveParticipant.uid,
+            (status) => {
+                setIsFriend(status === 'FRIENDS');
+            }
+        );
+        return () => unsub();
+    }, [isGroup, user?.uid, liveParticipant?.uid]);
+
+    if (!isGroup && !liveParticipant) return null;
+
+    // Respect privacy parameters synchronously with ProfilePreviewModal
+    const onlineStatusEnabled = liveParticipant?.privacy?.onlineStatus !== false;
+    const isOnlineEffective = onlineStatusEnabled ? liveParticipant?.isOnline : false;
+
+    const lastSeenSetting = liveParticipant?.privacy?.lastSeen || 'everyone';
+    let lastSeenEffective = liveParticipant?.lastSeen;
+    if (lastSeenSetting === 'nobody') {
+        lastSeenEffective = null;
+    } else if (lastSeenSetting === 'friends' && !isFriend) {
+        lastSeenEffective = null;
+    }
 
     return (
         <div className="flex flex-col shrink-0 select-none">
             <div className="h-[72px] px-5 bg-[var(--bg-surface)]/90 border-b border-[var(--border-color)] flex items-center justify-between backdrop-blur-md">
 
                 {isGroup ? (
-                    /* Group Workspace Header */
                     <div
                         onClick={() => onViewProfile && onViewProfile(conversation)}
                         className="flex items-center space-x-3.5 cursor-pointer group min-w-0"
@@ -50,31 +96,30 @@ export const ChatHeader = memo(({
                         </div>
                     </div>
                 ) : (
-                    /* Direct Message Header */
                     <div
-                        onClick={() => onViewProfile && onViewProfile(effectiveParticipant)}
+                        onClick={() => onViewProfile && onViewProfile(liveParticipant)}
                         className="flex items-center space-x-3.5 cursor-pointer group min-w-0"
                     >
                         <Avatar
-                            src={effectiveParticipant.photoURL}
-                            name={effectiveParticipant.fullName || 'User'}
+                            src={liveParticipant.photoURL}
+                            name={liveParticipant.fullName || 'User'}
                             size="md"
-                            isOnline={effectiveParticipant.isOnline}
+                            isOnline={isOnlineEffective}
                         />
                         <div className="flex flex-col min-w-0">
                             <span className="text-sm font-bold text-[var(--text-primary)] group-hover:text-[var(--color-primary)] transition-colors truncate">
-                                {effectiveParticipant.fullName || 'User'}
+                                {liveParticipant.fullName || 'User'}
                             </span>
                             <PresenceIndicator
-                                isOnline={effectiveParticipant.isOnline}
-                                lastSeen={effectiveParticipant.lastSeen}
+                                isOnline={isOnlineEffective}
+                                lastSeen={lastSeenEffective}
                                 size="sm"
+                                onlineStatusEnabled={onlineStatusEnabled}
                             />
                         </div>
                     </div>
                 )}
 
-                {/* Action Bar (Cross Button Rendered Here) */}
                 <div className="flex items-center space-x-1 shrink-0">
                     {onCloseChat && (
                         <button

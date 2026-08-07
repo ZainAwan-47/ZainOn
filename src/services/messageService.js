@@ -23,7 +23,8 @@ export const messageService = {
         senderId,
         text,
         recipientId,
-        replyTo = null
+        replyTo = null,
+        isFriend = true // NEW: Track friendship status on send
     ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
@@ -46,6 +47,7 @@ export const messageService = {
                 createdAt: serverTimestamp(),
                 deliveryStatus: 'sent',
                 seenBy: [senderId],
+                consumedBy: [senderId], // Critical for non-retroactive read receipts
                 reactions: {},
                 isPinned: false,
                 isStarred: {},
@@ -76,11 +78,16 @@ export const messageService = {
                 hiddenFor: [],
             };
 
-            // FIX: Increment unread counts correctly for both DMs and Groups
             if (recipientId) {
                 convUpdateData[`unreadCounts.${recipientId}`] = increment(1);
+
+                // UNBREAKABLE PER-USER LIMIT LOGIC:
+                if (!isFriend) {
+                    convUpdateData[`nonFriendMessageCounts.${senderId}`] = increment(1);
+                } else {
+                    convUpdateData.nonFriendMessageCounts = {};
+                }
             } else {
-                // It is a Group: Fetch participants to increment unread count for everyone except sender
                 const convSnap = await getDoc(convRef);
                 if (convSnap.exists()) {
                     const participants = convSnap.data().participants || {};
@@ -164,7 +171,6 @@ export const messageService = {
 
             undeliveredMessages.forEach((msg) => {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
-                // For groups, we skip global status updates to preserve individual states
                 batch.update(msgRef, {
                     ...(isGroup ? {} : { deliveryStatus: 'delivered' })
                 });
@@ -190,6 +196,22 @@ export const messageService = {
         }
     },
 
+    markAsConsumedOnly: async (conversationId, currentUid, unconsumedMessages = []) => {
+        if (!conversationId || !currentUid || unconsumedMessages.length === 0) return;
+        try {
+            const batch = writeBatch(db);
+            unconsumedMessages.forEach((msg) => {
+                const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
+                batch.update(msgRef, { consumedBy: arrayUnion(currentUid) });
+            });
+            const convRef = doc(db, 'conversations', conversationId);
+            batch.update(convRef, { [`unreadCounts.${currentUid}`]: 0 });
+            await batch.commit();
+        } catch (error) {
+            console.error('[messageService.markAsConsumedOnly]:', error);
+        }
+    },
+
     markAsSeen: async (conversationId, currentUid, unseenMessages = [], isGroup = false) => {
         if (!conversationId || !currentUid || unseenMessages.length === 0) return;
 
@@ -199,7 +221,7 @@ export const messageService = {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, {
                     seenBy: arrayUnion(currentUid),
-                    // FIX: Prevent groups from overwriting global delivery states
+                    consumedBy: arrayUnion(currentUid),
                     ...(isGroup ? {} : { deliveryStatus: 'read' }),
                 });
             });

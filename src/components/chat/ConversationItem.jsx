@@ -20,28 +20,33 @@ export const ConversationItem = memo(({
     const { showToast } = useToast();
 
     const isGroup = conversation.type === 'group';
-    const otherUser = conversation.otherParticipant || {};
+    const otherParticipantUid = conversation.otherParticipant?.uid;
     const lastMessage = conversation.lastMessage;
     const unreadCount = conversation.unreadCount || 0;
+    const messagePreviewEnabled = user?.chatPrefs?.messagePreview ?? true;
 
+    const [liveOtherUser, setLiveOtherUser] = useState(conversation.otherParticipant || {});
     const [isFriend, setIsFriend] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+    // Live Snapshot Listener for Target User (Respects Privacy Settings instantly in sidebar)
     useEffect(() => {
-        if (!user?.uid || !otherUser?.uid || isGroup) return () => { };
-
-        const friendDocRef = doc(db, 'users', user.uid, 'friends', otherUser.uid);
-        const unsub = onSnapshot(
-            friendDocRef,
-            (snap) => {
-                setIsFriend(snap.exists());
-            },
-            (error) => {
-                console.warn('[ConversationItem.isFriendCheck]:', error.message);
+        if (isGroup || !otherParticipantUid) return;
+        const unsub = onSnapshot(doc(db, 'users', otherParticipantUid), (docSnap) => {
+            if (docSnap.exists()) {
+                setLiveOtherUser({ uid: docSnap.id, ...docSnap.data() });
             }
-        );
+        });
         return () => unsub();
-    }, [user?.uid, otherUser?.uid, isGroup]);
+    }, [isGroup, otherParticipantUid]);
+
+    // Check Friendship
+    useEffect(() => {
+        if (!user?.uid || !otherParticipantUid || isGroup) return () => { };
+        const friendDocRef = doc(db, 'users', user.uid, 'friends', otherParticipantUid);
+        const unsub = onSnapshot(friendDocRef, (snap) => setIsFriend(snap.exists()));
+        return () => unsub();
+    }, [user?.uid, otherParticipantUid, isGroup]);
 
     const isOwnLastMessage = Boolean(
         lastMessage?.senderId && user?.uid && lastMessage.senderId === user.uid
@@ -72,9 +77,12 @@ export const ConversationItem = memo(({
         }
     };
 
-    const displayName = isGroup ? conversation.name : (otherUser.fullName || 'Direct Message');
-    const displayAvatar = isGroup ? conversation.avatar : otherUser.photoURL;
-    const displayOnline = isGroup ? false : otherUser.isOnline;
+    const displayName = isGroup ? conversation.name : (liveOtherUser.fullName || 'Direct Message');
+    const displayAvatar = isGroup ? conversation.avatar : liveOtherUser.photoURL;
+
+    // Check if the other user has onlineStatus turned off in real-time
+    const onlineStatusEnabled = liveOtherUser.privacy?.onlineStatus !== false;
+    const displayOnline = isGroup ? false : (onlineStatusEnabled ? liveOtherUser.isOnline : false);
 
     return (
         <>
@@ -86,7 +94,6 @@ export const ConversationItem = memo(({
             />
             <div
                 onClick={onClick}
-                // FIX: Stripped hardcoded tailwind colors, using semantic CSS vars for 100% theme compatibility
                 className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center space-x-3.5 group select-none relative ${isActive ? 'bg-[var(--bg-surface-hover)] border-[var(--color-primary)]/50 shadow-md ring-1 ring-[var(--color-primary)]/20' : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] border-transparent hover:border-[var(--border-color)]'} mb-1`}
             >
                 <div className="relative shrink-0">
@@ -112,15 +119,19 @@ export const ConversationItem = memo(({
 
                     <div className="flex items-center justify-between gap-2 min-w-0">
                         <p className="text-xs text-[var(--text-secondary)] truncate flex-1 min-w-0">
-                            {lastMessage?.text ? (
-                                <>
-                                    {isOwnLastMessage && <span className="font-bold text-[var(--color-primary)] mr-1">You:</span>}
-                                    <span>{lastMessage.text}</span>
-                                </>
+                            {messagePreviewEnabled ? (
+                                lastMessage?.text ? (
+                                    <>
+                                        {isOwnLastMessage && <span className="font-bold text-[var(--color-primary)] mr-1">You:</span>}
+                                        <span>{lastMessage.text}</span>
+                                    </>
+                                ) : (
+                                    <span className="italic opacity-70">
+                                        {isGroup ? 'Group workspace created' : 'No messages yet'}
+                                    </span>
+                                )
                             ) : (
-                                <span className="italic opacity-70">
-                                    {isGroup ? 'Group workspace created' : 'No messages yet'}
-                                </span>
+                                <span className="italic opacity-70">New message</span>
                             )}
                         </p>
 

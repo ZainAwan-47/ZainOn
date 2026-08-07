@@ -31,14 +31,12 @@ export const MainAppLayout = () => {
 
     usePresence(user?.uid);
 
-    // Tab State: 'chats' | 'groups' | 'friends' | 'requests'
     const [activeTab, setActiveTab] = useState('chats');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [selectedPreviewUser, setSelectedPreviewUser] = useState(null);
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
     const themeMenuRef = useRef(null);
 
-    // Close theme menu on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
@@ -116,6 +114,9 @@ export const MainAppLayout = () => {
 
     const isSearchActive = Boolean(searchQuery.trim());
 
+    // Respect the user's own onlineStatus privacy setting for the bottom-left avatar
+    const myOnlineStatusEnabled = user?.privacy?.onlineStatus !== false;
+
     return (
         <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex select-none transition-colors duration-300">
             {isMobileMenuOpen && (
@@ -126,10 +127,8 @@ export const MainAppLayout = () => {
                 />
             )}
 
-            {/* Sidebar Panel */}
             <aside className={`fixed md:static inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
 
-                {/* Brand Header */}
                 <div className="h-[72px] px-5 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 bg-[var(--bg-surface)]/90 backdrop-blur-md">
                     <div className="flex items-center space-x-3.5">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/20 ring-1 ring-white/10">
@@ -151,7 +150,6 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* Global Search */}
                 <div className="p-3.5 border-b border-[var(--border-color)] shrink-0">
                     <div className="relative flex items-center">
                         <svg className="w-4 h-4 absolute left-3.5 text-[var(--text-secondary)] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,7 +176,6 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* Navigation Tabs */}
                 {!isSearchActive && (
                     <div className="px-2 py-2 flex items-center space-x-1 border-b border-[var(--border-color)] shrink-0 bg-[var(--bg-surface)]">
                         <button type="button" onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'chats' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>
@@ -201,7 +198,6 @@ export const MainAppLayout = () => {
                     </div>
                 )}
 
-                {/* Dynamic Body Content */}
                 <div className="flex-1 overflow-y-auto p-3 space-y-1.5 bg-[var(--bg-surface)]">
                     {isSearchActive ? (
                         <UserSearchResults
@@ -251,17 +247,20 @@ export const MainAppLayout = () => {
                     )}
                 </div>
 
-                {/* Footer Navbar */}
                 <div className="px-3.5 py-2 flex items-center space-x-1 bg-[var(--bg-surface)] border-t border-[var(--border-color)] shrink-0">
                     <NavLink to="/chat" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Chat</NavLink>
                     <NavLink to="/profile" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Profile</NavLink>
                     <NavLink to="/settings" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Settings</NavLink>
                 </div>
 
-                {/* User Status Bar */}
                 <div className="h-[72px] px-4 border-t border-[var(--border-color)] bg-[var(--bg-surface)]/95 backdrop-blur-md flex items-center justify-between shrink-0">
                     <div className="flex items-center space-x-3 min-w-0 pr-2">
-                        <Avatar src={user?.photoURL} name={user?.fullName || user?.displayName || 'User'} size="md" isOnline={user?.isOnline ?? true} />
+                        <Avatar
+                            src={user?.photoURL}
+                            name={user?.fullName || user?.displayName || 'User'}
+                            size="md"
+                            isOnline={myOnlineStatusEnabled ? (user?.isOnline ?? true) : false}
+                        />
                         <div className="flex flex-col min-w-0">
                             <span className="text-xs font-bold text-[var(--text-primary)] truncate">{user?.fullName || user?.displayName || 'Zainon User'}</span>
                             <span className="text-[10px] font-medium text-[var(--text-secondary)] truncate">@{user?.username || 'user'}</span>
@@ -348,7 +347,6 @@ export const MainAppLayout = () => {
                 </div>
             </aside>
 
-            {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[var(--bg-main)] transition-colors duration-300 h-full relative">
                 <header className="md:hidden h-14 border-b border-[var(--border-color)] px-4 flex items-center justify-between bg-[var(--bg-surface)] shrink-0">
                     <div className="flex items-center space-x-3">
@@ -358,7 +356,12 @@ export const MainAppLayout = () => {
                         <span className="text-base font-bold text-[var(--text-primary)]">ZainOn</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <Avatar src={user?.photoURL} name={user?.fullName || user?.displayName || 'User'} size="sm" isOnline={user?.isOnline ?? true} />
+                        <Avatar
+                            src={user?.photoURL}
+                            name={user?.fullName || user?.displayName || 'User'}
+                            size="sm"
+                            isOnline={myOnlineStatusEnabled ? (user?.isOnline ?? true) : false}
+                        />
                         <IconButton onClick={handleLogout} title="Sign Out" variant="danger" size="sm">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 import { formatMessageTime } from '../../utils/dateFormatter';
 import MessageContextMenu from './MessageContextMenu';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 
 const SWIPE_UP_SPRING = {
     type: 'spring',
@@ -20,7 +21,6 @@ export const MessageBubble = memo(({
     message,
     isOwn = false,
     isGroup = false,
-    recipientIsOnline = false,
     recipientUid = '',
     currentUid = '',
     onReact,
@@ -31,9 +31,17 @@ export const MessageBubble = memo(({
     onViewSeenBy,
     onViewReactions
 }) => {
+    const { user } = useAuth();
     const { showToast } = useToast();
     const [showMenu, setShowMenu] = useState(false);
     const bubbleRef = useRef(null);
+
+    const chatFontSize = user?.chatPrefs?.chatFontSize || 'medium';
+    const fontClasses = {
+        small: 'text-[11px] px-3.5 py-2',
+        medium: 'text-[14px] px-4 py-2.5',
+        large: 'text-[17px] px-5 py-3 leading-relaxed',
+    };
 
     const formattedTime = formatMessageTime(message.createdAt);
     const isStarred = Boolean(message.isStarred?.[currentUid]);
@@ -41,6 +49,7 @@ export const MessageBubble = memo(({
 
     const seenByOthersCount = Array.from(new Set(message.seenBy || [])).filter(uid => uid !== message.senderId).length;
 
+    // Sender's UI reflects reality: if receiver marked it seen, it is green.
     const isSeen = isGroup
         ? Boolean(seenByOthersCount > 0)
         : Boolean(
@@ -110,7 +119,6 @@ export const MessageBubble = memo(({
             className={`relative flex flex-col my-1 group select-none ${isOwn ? 'items-end' : 'items-start'}`}
             style={{ willChange: 'transform, opacity' }}
         >
-            {/* Floating Action Context Menu */}
             {showMenu && (
                 <div
                     onClick={(e) => e.stopPropagation()}
@@ -141,19 +149,18 @@ export const MessageBubble = memo(({
                 </div>
             )}
 
-            {/* Message Text Bubble */}
             <div
                 onClick={handleBubbleClick}
-                className={`max-w-[75%] sm:max-w-[65%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-sm transition-all cursor-pointer relative ${isOwn
-                        ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-tr-xs'
-                        : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-xs'
+                className={`max-w-[75%] sm:max-w-[65%] rounded-2xl ${fontClasses[chatFontSize]} break-words shadow-sm transition-all cursor-pointer relative ${isOwn
+                    ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-tr-xs'
+                    : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-xs'
                     } ${showMenu ? 'ring-2 ring-[var(--color-primary)]/50 shadow-[var(--color-primary)]/20' : ''}`}
             >
                 {message.replyTo && (
                     <div
                         className={`mb-2 p-2 rounded-xl text-[11px] border-l-2 ${isOwn
-                                ? 'bg-black/20 border-white/40 text-white/90'
-                                : 'bg-[var(--bg-main)] border-[var(--color-primary)] text-[var(--text-secondary)]'
+                            ? 'bg-black/20 border-white/40 text-white/90'
+                            : 'bg-[var(--bg-main)] border-[var(--color-primary)] text-[var(--text-secondary)]'
                             }`}
                     >
                         <span className="font-bold text-[10px] block opacity-80">
@@ -209,7 +216,6 @@ export const MessageBubble = memo(({
                 </div>
             </div>
 
-            {/* Emoji Reactions Pill Bar */}
             {Object.keys(reactionsMap).length > 0 && (
                 <div
                     className={`flex flex-wrap gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}
@@ -226,8 +232,8 @@ export const MessageBubble = memo(({
                                     onViewReactions(message);
                                 }}
                                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 transition-all active:scale-95 cursor-pointer ${hasReacted
-                                        ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
-                                        : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
+                                    ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
+                                    : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
                                     }`}
                             >
                                 <span>{emoji}</span>

@@ -12,9 +12,28 @@ export const FriendActionButton = memo(({ targetUser, fullWidth = false }) => {
 
     const [status, setStatus] = useState('NOT_FRIENDS');
     const [loading, setLoading] = useState(false);
+    const [isFoF, setIsFoF] = useState(false);
+
+    // Evaluate dynamic restriction logic
+    const privacyReq = targetUser?.privacy?.friendRequests || 'everyone';
+    let isRestricted = false;
+
+    if (privacyReq === 'nobody') {
+        isRestricted = true;
+    } else if (privacyReq === 'friends_of_friends' && !isFoF) {
+        isRestricted = true;
+    }
 
     useEffect(() => {
         if (!user?.uid || !targetUser?.uid) return () => { };
+
+        const checkFoF = async () => {
+            if (privacyReq === 'friends_of_friends') {
+                const result = await friendService.checkIsFriendOfFriend(user.uid, targetUser.uid);
+                setIsFoF(result);
+            }
+        };
+        checkFoF();
 
         const unsub = friendService.subscribeToFriendshipStatus(
             user.uid,
@@ -25,18 +44,18 @@ export const FriendActionButton = memo(({ targetUser, fullWidth = false }) => {
         );
 
         return () => unsub();
-    }, [user?.uid, targetUser?.uid]);
+    }, [user?.uid, targetUser?.uid, privacyReq]);
 
     const handleSendRequest = async (e) => {
         e.stopPropagation();
-        if (!user?.uid || !targetUser?.uid || loading) return;
+        if (!user?.uid || !targetUser?.uid || loading || isRestricted) return;
 
         try {
             setLoading(true);
             await friendService.sendFriendRequest(user.uid, targetUser.uid);
             showToast(`Friend request sent to ${targetUser.fullName || 'User'}`, 'info');
         } catch (error) {
-            showToast('Failed to send friend request.', 'error');
+            showToast(error.message || 'Failed to send friend request.', 'error');
         } finally {
             setLoading(false);
         }
@@ -94,6 +113,26 @@ export const FriendActionButton = memo(({ targetUser, fullWidth = false }) => {
                 <span className="w-full py-2 px-3 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-[var(--color-primary)] text-xs font-bold select-none flex items-center justify-center">
                     Request Pending
                 </span>
+            </div>
+        );
+    }
+
+    // Locked Blurred Overlay UI
+    if (isRestricted) {
+        return (
+            <div className={`relative ${containerClasses} overflow-hidden rounded-xl group`}>
+                <div className="absolute inset-0 bg-[var(--bg-main)]/60 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-xl transition-all duration-300">
+                    <svg className="w-4 h-4 text-[var(--text-secondary)] drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C9.243 2 7 4.243 7 7v3H6c-1.103 0-2 .897-2 2v8c0 1.103.897 2 2 2h12c1.103 0 2-.897 2-2v-8c0-1.103-.897-2-2-2h-1V7c0-2.757-2.243-5-5-5zm0 2c1.654 0 3 1.346 3 3v3H9V7c0-1.654 1.346-3 3-3zm-1 11.82V18h2v-2.18c.313-.213.5-.558.5-.94 0-.663-.537-1.2-1.2-1.2-.663 0-1.2.537-1.2 1.2 0 .382.187.727.5.94z" />
+                    </svg>
+                </div>
+                <button
+                    type="button"
+                    disabled
+                    className="w-full py-2 px-3 bg-[var(--bg-surface-hover)] text-[var(--text-secondary)] rounded-xl border border-[var(--border-color)] text-xs font-bold opacity-50 select-none flex items-center justify-center"
+                >
+                    Add Friend
+                </button>
             </div>
         );
     }

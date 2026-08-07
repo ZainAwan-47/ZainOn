@@ -3,38 +3,65 @@ import React, { createContext, useState, useEffect } from 'react';
 
 // Firebase
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { auth } from '../firebase/auth';
+import { db } from '../firebase/firestore';
 
 // Services
 import { authService } from '../services/authService';
 
-// 1. Explicit Named Export for AuthContext
 export const AuthContext = createContext(null);
 
-// 2. Explicit Named Export for AuthProvider
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        let unsubscribeUserDoc = null;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (unsubscribeUserDoc) {
+                unsubscribeUserDoc();
+                unsubscribeUserDoc = null;
+            }
+
             if (firebaseUser) {
                 try {
-                    // Fetch extended user profile data from Firestore
                     const profile = await authService.getUserProfile(firebaseUser.uid);
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        displayName: firebaseUser.displayName || profile?.fullName || 'User',
-                        fullName: profile?.fullName || firebaseUser.displayName || 'User',
-                        username: profile?.username || firebaseUser.email?.split('@')[0] || 'user',
-                        photoURL: firebaseUser.photoURL || profile?.photoURL || '',
-                        bio: profile?.bio || '',
-                        status: profile?.status || "Hey there! I'm using ZainOn.",
-                        isOnline: profile?.isOnline ?? true,
-                        role: profile?.role || 'user',
-                        emailVerified: firebaseUser.emailVerified,
+
+                    const userDocRef = doc(db, 'users', firebaseUser.uid);
+                    unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
+                        const liveData = docSnap.exists() ? docSnap.data() : {};
+                        setUser({
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName || liveData.fullName || profile?.fullName || 'User',
+                            fullName: liveData.fullName || profile?.fullName || firebaseUser.displayName || 'User',
+                            username: liveData.username || profile?.username || firebaseUser.email?.split('@')[0] || 'user',
+                            photoURL: liveData.photoURL || firebaseUser.photoURL || profile?.photoURL || '',
+                            bio: liveData.bio || profile?.bio || '',
+                            status: liveData.status || profile?.status || "Hey there! I'm using ZainOn.",
+                            isOnline: liveData.isOnline ?? true,
+                            role: liveData.role || profile?.role || 'user',
+                            emailVerified: firebaseUser.emailVerified,
+                            privacy: {
+                                lastSeen: liveData.privacy?.lastSeen || 'everyone',
+                                onlineStatus: liveData.privacy?.onlineStatus ?? true,
+                                readReceipts: liveData.privacy?.readReceipts ?? true,
+                                profileVisibility: liveData.privacy?.profileVisibility || 'everyone',
+                                friendRequests: liveData.privacy?.friendRequests || 'everyone',
+                            },
+                            chatPrefs: {
+                                enterToSend: liveData.chatPrefs?.enterToSend ?? true,
+                                autoScroll: liveData.chatPrefs?.autoScroll ?? true,
+                                chatFontSize: liveData.chatPrefs?.chatFontSize || 'medium',
+                                messagePreview: liveData.chatPrefs?.messagePreview ?? true,
+                            },
+                        });
+                    }, (error) => {
+                        console.error('[AuthContext]: Error listening to user doc snapshot', error);
                     });
+
                 } catch (error) {
                     console.error('[AuthContext]: Error fetching profile during auth state change', error);
                     setUser({
@@ -45,6 +72,8 @@ export const AuthProvider = ({ children }) => {
                         username: firebaseUser.email?.split('@')[0] || 'user',
                         photoURL: firebaseUser.photoURL || '',
                         emailVerified: firebaseUser.emailVerified,
+                        privacy: { lastSeen: 'everyone', onlineStatus: true, readReceipts: true, profileVisibility: 'everyone', friendRequests: 'everyone' },
+                        chatPrefs: { enterToSend: true, autoScroll: true, chatFontSize: 'medium', messagePreview: true },
                     });
                 }
             } else {
@@ -53,13 +82,14 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeUserDoc) unsubscribeUserDoc();
+        };
     }, []);
 
-    // --- FIX: Bulletproof Logout Logic ---
     const logout = async () => {
         try {
-            // Attempt standard service logout (handles presence updates, etc.)
             if (authService && typeof authService.logout === 'function') {
                 await authService.logout();
             } else {
@@ -67,9 +97,8 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (error) {
             console.warn('[AuthContext] Service logout threw an error, forcing native Firebase signOut:', error);
-            await signOut(auth); // Force absolute native signout if the service fails
+            await signOut(auth);
         } finally {
-            // GUARANTEE the context is wiped instantly
             setUser(null);
         }
     };
@@ -88,5 +117,4 @@ export const AuthProvider = ({ children }) => {
     );
 };
 
-// 3. Default Export for Fallback Compatibility
 export default AuthProvider;
