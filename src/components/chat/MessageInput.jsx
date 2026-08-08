@@ -4,12 +4,14 @@ import React, { useState, useRef, useEffect, memo } from 'react';
 // Components
 import EmojiPicker from './EmojiPicker';
 import { useAuth } from '../../hooks/useAuth';
+import { conversationService } from '../../services/conversationService';
 
-export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled = false }) => {
+export const MessageInput = memo(({ conversationId, onSend, replyingTo, onCancelReply, disabled = false }) => {
     const { user } = useAuth();
     const [text, setText] = useState('');
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const textareaRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
 
     const enterToSend = user?.chatPrefs?.enterToSend ?? true;
 
@@ -24,6 +26,17 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
         const val = e.target.value;
         setText(val);
 
+        // Trigger typing status indicator
+        if (conversationId && user?.uid) {
+            conversationService.setTypingStatus(conversationId, user.uid, true);
+
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+            typingTimeoutRef.current = setTimeout(() => {
+                conversationService.setTypingStatus(conversationId, user.uid, false);
+            }, 2000);
+        }
+
         const textarea = textareaRef.current;
         if (textarea) {
             textarea.style.height = 'auto';
@@ -35,6 +48,12 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
         if (e) e.preventDefault();
         const trimmed = text.trim();
         if (!trimmed || disabled) return;
+
+        // Clear typing status immediately upon submission
+        if (conversationId && user?.uid) {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            conversationService.setTypingStatus(conversationId, user.uid, false);
+        }
 
         onSend(trimmed, replyingTo);
         setText('');

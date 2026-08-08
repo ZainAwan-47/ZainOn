@@ -100,7 +100,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         return () => unsub();
     }, [user?.uid, otherParticipant?.uid, isGroup]);
 
-    // Search Matching Logic with Newest-First Priority (.reverse())
     useEffect(() => {
         if (!searchQuery.trim()) {
             setMatchingMessageIds([]);
@@ -111,7 +110,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         const matched = displayMessages
             .filter((msg) => msg.text && msg.text.toLowerCase().includes(term) && !msg.isDeleted)
             .map((m) => m.id)
-            .reverse(); // Prioritize the most recent match first!
+            .reverse();
 
         setMatchingMessageIds(matched);
         setSearchIndex(0);
@@ -145,6 +144,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         scrollToMessageId(matchingMessageIds[prevIdx]);
     };
 
+    // Clean, precise container scrolling without overscroll distortion
     const scrollToBottom = useCallback((instant = false) => {
         if (!chatContainerRef.current) return;
         const container = chatContainerRef.current;
@@ -155,6 +155,17 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isNearBottomRef.current = true;
         setShowScrollBadge(false);
     }, []);
+
+    // Re-align scroll precisely when viewport/layout size changes (e.g. desktop <-> mobile toggle)
+    useEffect(() => {
+        const handleResize = () => {
+            if (isNearBottomRef.current) {
+                scrollToBottom(true);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [scrollToBottom]);
 
     const processAcknowledgements = useCallback(() => {
         if (!conversation?.id || !user?.uid || displayMessages.length === 0) return;
@@ -212,12 +223,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     useLayoutEffect(() => {
         if (!loading && displayMessages.length > 0 && prevMessagesLengthRef.current === 0) {
-            if (chatContainerRef.current) {
-                chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-            }
+            scrollToBottom(true);
             isNearBottomRef.current = true;
         }
-    }, [loading, displayMessages.length]);
+    }, [loading, displayMessages.length, scrollToBottom]);
 
     useLayoutEffect(() => {
         if (displayMessages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
@@ -232,6 +241,20 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         }
         prevMessagesLengthRef.current = displayMessages.length;
     }, [displayMessages, user?.uid, scrollToBottom]);
+
+    // Extract typing status map from conversation
+    const typingMap = conversation?.typing || {};
+    const otherUserUid = isGroup ? null : otherParticipant?.uid;
+    const isOtherUserTyping = otherUserUid
+        ? Boolean(typingMap[otherUserUid])
+        : Object.entries(typingMap).some(([uid, val]) => uid !== user?.uid && val);
+
+    // Smoothly adjust scroll position when typing indicator appears or disappears
+    useEffect(() => {
+        if (isNearBottomRef.current) {
+            requestAnimationFrame(() => scrollToBottom(false));
+        }
+    }, [isOtherUserTyping, scrollToBottom]);
 
     const handleSendWithReply = useCallback(
         async (text, replyToMsg) => {
@@ -541,7 +564,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 scrollbar-thin relative"
+                className="flex-1 overflow-y-auto p-4 scrollbar-thin relative flex flex-col"
             >
                 {loading ? (
                     showLoading ? (
@@ -585,7 +608,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                         )}
                     </div>
                 ) : (
-                    <div className="flex flex-col space-y-1">
+                    <div className="flex flex-col space-y-1 mt-auto">
                         {displayMessages.map((msg, index) => {
                             const prevMsg = displayMessages[index - 1];
                             const showSeparator = shouldShowDateSeparator(msg, prevMsg);
@@ -630,6 +653,16 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                 </React.Fragment>
                             );
                         })}
+                        {/* 3-dots wave typing indicator */}
+                        {isOtherUserTyping && (
+                            <div className="flex items-center space-x-2 mb-3 mt-1 select-none animate-in fade-in duration-200">
+                                <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5">
+                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce"></div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -660,6 +693,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 </div>
             ) : (
                 <MessageInput
+                    conversationId={conversation.id}
                     onSend={handleSendWithReply}
                     replyingTo={replyingTo}
                     onCancelReply={handleCancelReply}

@@ -84,6 +84,12 @@ export const ConversationItem = memo(({
     const onlineStatusEnabled = liveOtherUser.privacy?.onlineStatus !== false;
     const displayOnline = isGroup ? false : (onlineStatusEnabled ? liveOtherUser.isOnline : false);
 
+    // Typing indicator extraction
+    const typingMap = conversation?.typing || {};
+    const isOtherUserTyping = otherParticipantUid
+        ? Boolean(typingMap[otherParticipantUid])
+        : Object.entries(typingMap).some(([uid, val]) => uid !== user?.uid && val);
+
     return (
         <>
             <DeleteChatModal
@@ -119,7 +125,11 @@ export const ConversationItem = memo(({
 
                     <div className="flex items-center justify-between gap-2 min-w-0">
                         <p className="text-xs text-[var(--text-secondary)] truncate flex-1 min-w-0">
-                            {messagePreviewEnabled ? (
+                            {isOtherUserTyping ? (
+                                <span className="font-semibold text-[var(--color-primary)] italic animate-pulse">
+                                    typing...
+                                </span>
+                            ) : messagePreviewEnabled ? (
                                 lastMessage?.text ? (
                                     <>
                                         {isOwnLastMessage && <span className="font-bold text-[var(--color-primary)] mr-1">You:</span>}

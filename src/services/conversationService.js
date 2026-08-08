@@ -93,6 +93,25 @@ export const conversationService = {
         }
     },
 
+    // Fixed using setDoc with merge: true so it auto-initializes the typing map safely
+    setTypingStatus: async (conversationId, userId, isTyping) => {
+        if (!conversationId || !userId) return;
+        try {
+            const convRef = doc(db, 'conversations', conversationId);
+            await setDoc(
+                convRef,
+                {
+                    typing: {
+                        [userId]: isTyping,
+                    },
+                },
+                { merge: true }
+            );
+        } catch (error) {
+            console.error('[conversationService.setTypingStatus]:', error);
+        }
+    },
+
     subscribeToUserConversations: (currentUid, callback) => {
         if (!currentUid) return () => { };
 
@@ -119,7 +138,6 @@ export const conversationService = {
 
                 rawConversationsMap.clear();
                 snapshot.docs.forEach((docSnap) => {
-                    // EXPLICITLY attach id: docSnap.id to ensure ID is never undefined
                     rawConversationsMap.set(docSnap.id, {
                         id: docSnap.id,
                         ...docSnap.data(),
@@ -136,7 +154,6 @@ export const conversationService = {
                             ? null
                             : rawConv.lastMessage;
 
-                    // Polymorphic Hydration
                     if (isGroup) {
                         return {
                             ...rawConv,
@@ -184,7 +201,6 @@ export const conversationService = {
                             if (rawConv.hiddenFor?.includes(currentUid)) {
                                 return false;
                             }
-                            // Do NOT filter out empty group conversations
                             if (
                                 rawConv.type !== 'group' &&
                                 !rawConv.lastMessage &&
@@ -206,7 +222,6 @@ export const conversationService = {
                     callback(sortedList);
                 };
 
-                // Attach presence listeners ONLY for 1-on-1 direct conversations
                 snapshot.docs.forEach((docSnap) => {
                     const conv = docSnap.data();
                     if (conv.type !== 'group') {
