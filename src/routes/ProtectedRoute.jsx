@@ -1,6 +1,10 @@
+// React
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+
+// Hooks & Components
 import { useAuth } from '../hooks/useAuth';
+import SplashScreen from '../components/ui/SplashScreen';
 
 export const ProtectedRoute = () => {
     const { user, loading } = useAuth();
@@ -8,11 +12,7 @@ export const ProtectedRoute = () => {
 
     // 1. Wait for Firebase to determine auth state
     if (loading) {
-        return (
-            <div className="min-h-screen w-screen bg-slate-950 flex items-center justify-center">
-                <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
+        return <SplashScreen message="Restoring ZainOn session..." />;
     }
 
     // 2. Unauthenticated -> Kick to Login

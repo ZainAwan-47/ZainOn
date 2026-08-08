@@ -3,46 +3,68 @@ import React, { createContext, useState, useEffect } from 'react';
 
 // Firebase
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth } from '../firebase/auth';
 import { db } from '../firebase/firestore';
 
 // Services
 import { authService } from '../services/authService';
 
+// Components
+import SplashScreen from '../components/ui/SplashScreen';
+
 export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
+    // Optimistically initialize user from auth.currentUser if already cached in memory to prevent null flickers
+    const [user, setUser] = useState(() =>
+        auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null
+    );
     const [loading, setLoading] = useState(true);
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
 
     useEffect(() => {
-        let unsubscribeUserDoc = null;
+        let isMounted = true;
 
-        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (unsubscribeUserDoc) {
-                unsubscribeUserDoc();
-                unsubscribeUserDoc = null;
+        const safetyTimer = setTimeout(() => {
+            if (isMounted && loading) {
+                console.warn('[AuthContext] Safety timeout: forcing loading completion.');
+                setLoading(false);
+            }
+        }, 4000);
+
+        const initializeAuth = async () => {
+            try {
+                // CRITICAL FIX: Wait for Firebase auth state persistence to fully load from storage on refresh
+                await auth.authStateReady();
+            } catch (err) {
+                console.warn('[AuthContext] authStateReady warning:', err);
             }
 
-            if (firebaseUser) {
-                try {
-                    const profile = await authService.getUserProfile(firebaseUser.uid);
+            if (!isMounted) return;
 
-                    const userDocRef = doc(db, 'users', firebaseUser.uid);
-                    unsubscribeUserDoc = onSnapshot(userDocRef, (docSnap) => {
-                        const liveData = docSnap.exists() ? docSnap.data() : {};
+            onAuthStateChanged(auth, async (firebaseUser) => {
+                if (!isMounted) return;
+
+                if (firebaseUser) {
+                    try {
+                        const userDocRef = doc(db, 'users', firebaseUser.uid);
+                        const userDocSnap = await getDoc(userDocRef);
+                        const liveData = userDocSnap.exists() ? userDocSnap.data() : {};
+
+                        if (!isMounted) return;
+
                         setUser({
                             uid: firebaseUser.uid,
                             email: firebaseUser.email,
-                            displayName: firebaseUser.displayName || liveData.fullName || profile?.fullName || 'User',
-                            fullName: liveData.fullName || profile?.fullName || firebaseUser.displayName || 'User',
-                            username: liveData.username || profile?.username || firebaseUser.email?.split('@')[0] || 'user',
-                            photoURL: liveData.photoURL || firebaseUser.photoURL || profile?.photoURL || '',
-                            bio: liveData.bio || profile?.bio || '',
-                            status: liveData.status || profile?.status || "Hey there! I'm using ZainOn.",
+                            displayName: firebaseUser.displayName || liveData.fullName || 'User',
+                            fullName: liveData.fullName || firebaseUser.displayName || 'User',
+                            username: liveData.username || firebaseUser.email?.split('@')[0] || 'user',
+                            photoURL: liveData.photoURL || firebaseUser.photoURL || '',
+                            bio: liveData.bio || '',
+                            status: liveData.status || "Hey there! I'm using ZainOn.",
                             isOnline: liveData.isOnline ?? true,
-                            role: liveData.role || profile?.role || 'user',
+                            role: liveData.role || 'user',
                             emailVerified: firebaseUser.emailVerified,
                             privacy: {
                                 lastSeen: liveData.privacy?.lastSeen || 'everyone',
@@ -58,48 +80,82 @@ export const AuthProvider = ({ children }) => {
                                 messagePreview: liveData.chatPrefs?.messagePreview ?? true,
                             },
                         });
-                    }, (error) => {
-                        console.error('[AuthContext]: Error listening to user doc snapshot', error);
-                    });
-
-                } catch (error) {
-                    console.error('[AuthContext]: Error fetching profile during auth state change', error);
-                    setUser({
-                        uid: firebaseUser.uid,
-                        email: firebaseUser.email,
-                        displayName: firebaseUser.displayName || 'User',
-                        fullName: firebaseUser.displayName || 'User',
-                        username: firebaseUser.email?.split('@')[0] || 'user',
-                        photoURL: firebaseUser.photoURL || '',
-                        emailVerified: firebaseUser.emailVerified,
-                        privacy: { lastSeen: 'everyone', onlineStatus: true, readReceipts: true, profileVisibility: 'everyone', friendRequests: 'everyone' },
-                        chatPrefs: { enterToSend: true, autoScroll: true, chatFontSize: 'medium', messagePreview: true },
-                    });
+                    } catch (error) {
+                        console.error('[AuthContext] Error fetching user profile:', error);
+                        if (isMounted) {
+                            setUser({
+                                uid: firebaseUser.uid,
+                                email: firebaseUser.email,
+                                displayName: firebaseUser.displayName || 'User',
+                                fullName: firebaseUser.displayName || 'User',
+                                username: firebaseUser.email?.split('@')[0] || 'user',
+                                photoURL: firebaseUser.photoURL || '',
+                                emailVerified: firebaseUser.emailVerified,
+                                privacy: { lastSeen: 'everyone', onlineStatus: true, readReceipts: true, profileVisibility: 'everyone', friendRequests: 'everyone' },
+                                chatPrefs: { enterToSend: true, autoScroll: true, chatFontSize: 'medium', messagePreview: true },
+                            });
+                        }
+                    }
+                } else {
+                    if (isMounted) {
+                        setUser(null);
+                    }
                 }
-            } else {
-                setUser(null);
-            }
-            setLoading(false);
-        });
+
+                if (isMounted) {
+                    setLoading(false);
+                    setIsAuthenticating(false);
+                }
+            });
+        };
+
+        initializeAuth();
 
         return () => {
-            unsubscribeAuth();
-            if (unsubscribeUserDoc) unsubscribeUserDoc();
+            isMounted = false;
+            clearTimeout(safetyTimer);
         };
     }, []);
 
+    // Clean up native splash from HTML
+    useEffect(() => {
+        if (!loading) {
+            const nativeSplash = document.getElementById('native-splash');
+            if (nativeSplash) {
+                nativeSplash.style.opacity = '0';
+                setTimeout(() => nativeSplash.remove(), 300);
+            }
+        }
+    }, [loading]);
+
+    const login = async (email, password, rememberMe) => {
+        setIsAuthenticating(true);
+        try {
+            return await authService.login(email, password, rememberMe);
+        } catch (err) {
+            setIsAuthenticating(false);
+            throw err;
+        }
+    };
+
+    const googleLogin = async () => {
+        setIsAuthenticating(true);
+        try {
+            return await authService.googleLogin();
+        } catch (err) {
+            setIsAuthenticating(false);
+            throw err;
+        }
+    };
+
     const logout = async () => {
         try {
-            if (authService && typeof authService.logout === 'function') {
-                await authService.logout();
-            } else {
-                await signOut(auth);
-            }
+            await authService.logout();
         } catch (error) {
-            console.warn('[AuthContext] Service logout threw an error, forcing native Firebase signOut:', error);
             await signOut(auth);
         } finally {
             setUser(null);
+            setIsAuthenticating(false);
         }
     };
 
@@ -107,12 +163,18 @@ export const AuthProvider = ({ children }) => {
         user,
         loading,
         isAuthenticated: Boolean(user),
+        login,
+        googleLogin,
         logout,
     };
 
+    if (loading || isAuthenticating) {
+        return <SplashScreen message={isAuthenticating ? "Signing into your workspace..." : "Restoring ZainOn session..."} />;
+    }
+
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 };

@@ -8,6 +8,9 @@ import { auth } from '../firebase/auth';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../context/ToastContext';
 
+// Components
+import SplashScreen from '../components/ui/SplashScreen';
+
 export const VerifyEmailPage = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -16,10 +19,16 @@ export const VerifyEmailPage = () => {
     const [checking, setChecking] = useState(false);
     const [resending, setResending] = useState(false);
     const [resendDisabled, setResendDisabled] = useState(false);
+    const [isVerifiedTransitioning, setIsVerifiedTransitioning] = useState(false);
 
     // Auto-redirect verified users away from the quarantine page
-    if (user?.emailVerified) {
+    if (user?.emailVerified && !isVerifiedTransitioning) {
         return <Navigate to="/chat" replace />;
+    }
+
+    // Render Splash Screen during the 2-second success delay
+    if (isVerifiedTransitioning) {
+        return <SplashScreen message="Email verified! Loading your workspace..." />;
     }
 
     const handleCheckVerification = async () => {
@@ -31,7 +40,10 @@ export const VerifyEmailPage = () => {
 
             if (auth.currentUser.emailVerified) {
                 showToast('Email verified successfully! Welcome to ZainOn.', 'info');
-                window.location.assign('/chat');
+                setIsVerifiedTransitioning(true);
+                setTimeout(() => {
+                    window.location.assign('/chat');
+                }, 2000); // Exactly 2 seconds delay
             } else {
                 showToast('Your email is not verified yet. Please check your inbox or spam folder.', 'error');
             }
@@ -49,7 +61,7 @@ export const VerifyEmailPage = () => {
         try {
             setResending(true);
             await sendEmailVerification(auth.currentUser);
-            showToast('Verification email resent! Please check your inbox.', 'info');
+            showToast('Verification email resent! Please check your inbox or spam folder.', 'info');
             setResendDisabled(true);
 
             setTimeout(() => setResendDisabled(false), 60000);
@@ -86,12 +98,20 @@ export const VerifyEmailPage = () => {
                 </div>
 
                 {/* Content Details */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <h1 className="text-xl font-bold tracking-tight">Verify Your Email Address</h1>
                     <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                         We have dispatched a verification link to{' '}
                         <span className="text-[var(--color-primary)] font-semibold">{user?.email}</span>. Please verify your email address to access your workspace.
                     </p>
+
+                    {/* Spam Folder Advisory Callout */}
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-medium leading-relaxed flex items-start space-x-2.5 text-left">
+                        <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Can&apos;t find the email? Please make sure to check your <strong>spam or junk folder</strong> just in case it landed there.</span>
+                    </div>
                 </div>
 
                 {/* Action Controls */}

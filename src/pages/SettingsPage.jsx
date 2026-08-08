@@ -1,5 +1,5 @@
 // React
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // Context & Hooks
@@ -36,11 +36,32 @@ export const SettingsPage = () => {
         messagePreview: user?.chatPrefs?.messagePreview ?? true,
     });
 
+    // CRITICAL FIX: Synchronize local form state whenever user object updates from Firestore context
+    useEffect(() => {
+        if (user) {
+            setPrivacy({
+                lastSeen: user.privacy?.lastSeen || 'everyone',
+                onlineStatus: user.privacy?.onlineStatus ?? true,
+                readReceipts: user.privacy?.readReceipts ?? true,
+                profileVisibility: user.privacy?.profileVisibility || 'everyone',
+                friendRequests: user.privacy?.friendRequests || 'everyone',
+            });
+            setChatPrefs({
+                enterToSend: user.chatPrefs?.enterToSend ?? true,
+                autoScroll: user.chatPrefs?.autoScroll ?? true,
+                chatFontSize: user.chatPrefs?.chatFontSize || 'medium',
+                messagePreview: user.chatPrefs?.messagePreview ?? true,
+            });
+        }
+    }, [user]);
+
     const savePrivacySettings = async () => {
         if (!user?.uid) return;
         setIsSaving(true);
         try {
             await userService.updateUserSettings(user.uid, { privacy });
+            // Optimistically update user context object locally if available
+            if (user) user.privacy = privacy;
             showToast('Privacy settings saved successfully!', 'info');
         } catch (error) {
             showToast('Failed to save privacy settings.', 'error');
@@ -54,6 +75,8 @@ export const SettingsPage = () => {
         setIsSaving(true);
         try {
             await userService.updateUserSettings(user.uid, { chatPrefs });
+            // Optimistically update user context object locally so features (like enterToSend) apply immediately
+            if (user) user.chatPrefs = chatPrefs;
             showToast('Chat preferences saved successfully!', 'info');
         } catch (error) {
             showToast('Failed to save chat preferences.', 'error');

@@ -13,6 +13,18 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
 
     const enterToSend = user?.chatPrefs?.enterToSend ?? true;
 
+    // Professional dynamic height adjustment: expands upwards as lines are added
+    const handleInput = (e) => {
+        const val = e.target.value;
+        setText(val);
+
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto'; // Reset height temporarily to recalculate scrollHeight accurately
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`; // Capped at max-h-28 (112px)
+        }
+    };
+
     const handleSubmit = (e) => {
         if (e) e.preventDefault();
         const trimmed = text.trim();
@@ -22,6 +34,7 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
         setText('');
         if (onCancelReply) onCancelReply();
 
+        // Reset textarea height back to single line after submission
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             textareaRef.current.focus();
@@ -35,12 +48,23 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                 handleSubmit(e);
             }
             // If enterToSend is false, or if shiftKey is pressed, 
-            // we do nothing here so the textarea naturally inserts a newline.
+            // it naturally inserts a newline and auto-expands upwards.
         }
     };
 
     const handleSelectEmoji = (emoji) => {
-        setText((prev) => prev + emoji);
+        setText((prev) => {
+            const nextText = prev + emoji;
+            // Trigger height expansion after emoji injection
+            setTimeout(() => {
+                const textarea = textareaRef.current;
+                if (textarea) {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`;
+                }
+            }, 0);
+            return nextText;
+        });
     };
 
     return (
@@ -96,12 +120,12 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                     <textarea
                         ref={textareaRef}
                         value={text}
-                        onChange={(e) => setText(e.target.value)}
+                        onChange={handleInput}
                         onKeyDown={handleKeyDown}
                         placeholder={enterToSend ? "Type a message... (Enter to send)" : "Type a message... (Shift+Enter for newline)"}
                         rows={1}
                         disabled={disabled}
-                        className="w-full bg-transparent text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none resize-none max-h-28 scrollbar-thin"
+                        className="w-full bg-transparent text-xs text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none resize-none max-h-28 scrollbar-thin overflow-y-auto leading-relaxed"
                     />
                 </div>
 
