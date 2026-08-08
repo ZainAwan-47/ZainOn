@@ -1,17 +1,70 @@
 // React
-import React, { memo } from 'react';
+import React, { useState, useEffect, memo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 // Third Party
 import { motion } from 'framer-motion';
 
 // Services & Hooks
+import { db } from '../../firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
+import { useFriends } from '../../hooks/useFriends';
 
 // Components
 import Avatar from '../ui/Avatar';
+import PresenceIndicator from '../ui/PresenceIndicator';
+
+// Live Participant Sub-Component to enforce real-time privacy
+const LiveReactionParticipant = memo(({ item, currentUserUid, friends }) => {
+    const { emoji, uid, participant: initialParticipant } = item;
+    const isSelf = uid === currentUserUid;
+    const [liveUser, setLiveUser] = useState(initialParticipant || {});
+
+    // Attach real-time snapshot for this specific member
+    useEffect(() => {
+        if (isSelf) return;
+        const unsub = onSnapshot(doc(db, 'users', uid), (snap) => {
+            if (snap.exists()) setLiveUser({ ...snap.data(), uid: snap.id });
+        });
+        return () => unsub();
+    }, [isSelf, uid]);
+
+    const displayName = isSelf ? 'You' : (liveUser.fullName || 'Unknown User');
+
+    // Strict Privacy Logic
+    const isFriend = friends.some(f => (f.uid || f.id) === uid);
+    const onlineStatusEnabled = liveUser.privacy?.onlineStatus !== false;
+    const isOnlineEffective = isSelf ? true : (onlineStatusEnabled ? liveUser.isOnline : false);
+
+    const lastSeenSetting = liveUser.privacy?.lastSeen || 'everyone';
+    let lastSeenEffective = liveUser.lastSeen;
+    if (lastSeenSetting === 'nobody') lastSeenEffective = null;
+    else if (lastSeenSetting === 'friends' && !isFriend) lastSeenEffective = null;
+    if (isSelf) lastSeenEffective = null; // Don't show last seen for yourself
+
+    return (
+        <div className="flex items-center space-x-3 p-2 hover:bg-[var(--bg-surface-hover)] rounded-xl transition-colors">
+            <span className="text-2xl drop-shadow-sm shrink-0 leading-none">{emoji}</span>
+            <Avatar src={liveUser.photoURL} name={displayName} size="sm" isOnline={isOnlineEffective} />
+            <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-bold text-[var(--text-primary)] truncate">{displayName}</span>
+                <span className="text-[10px] text-[var(--text-secondary)] truncate">@{liveUser.username || 'user'}</span>
+                <div className="mt-0.5">
+                    <PresenceIndicator
+                        isOnline={isOnlineEffective}
+                        lastSeen={lastSeenEffective}
+                        size="sm"
+                        onlineStatusEnabled={onlineStatusEnabled}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+});
 
 export const ReactionDetailsModal = memo(({ message, participants = {}, onClose }) => {
     const { user } = useAuth();
+    const { friends = [] } = useFriends() || {};
 
     if (!message) return null;
 
@@ -60,21 +113,14 @@ export const ReactionDetailsModal = memo(({ message, participants = {}, onClose 
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            {reactionList.map((item, idx) => {
-                                const isSelf = item.uid === user?.uid;
-                                const displayName = isSelf ? 'You' : (item.participant.fullName || 'Unknown User');
-
-                                return (
-                                    <div key={`${item.emoji}-${item.uid}-${idx}`} className="flex items-center space-x-3 p-2 hover:bg-[var(--bg-surface-hover)] rounded-xl transition-colors">
-                                        <span className="text-2xl drop-shadow-sm shrink-0 leading-none">{item.emoji}</span>
-                                        <Avatar src={item.participant.photoURL} name={displayName} size="sm" isOnline={item.participant.isOnline} />
-                                        <div className="flex flex-col min-w-0 flex-1">
-                                            <span className="text-xs font-bold text-[var(--text-primary)] truncate">{displayName}</span>
-                                            <span className="text-[10px] text-[var(--text-secondary)] truncate">@{item.participant.username || 'user'}</span>
-                                        </div>
-                                    </div>
-                                )
-                            })}
+                            {reactionList.map((item, idx) => (
+                                <LiveReactionParticipant
+                                    key={`${item.emoji}-${item.uid}-${idx}`}
+                                    item={item}
+                                    currentUserUid={user?.uid}
+                                    friends={friends}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>

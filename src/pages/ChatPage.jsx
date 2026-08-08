@@ -11,14 +11,19 @@ export const ChatPage = () => {
         activeConversationId,
         setActiveConversationId,
         setSelectedPreviewUser,
+        openMobileMenu
     } = useOutletContext();
 
-    // Match by id OR groupId to guarantee active group resolution
     const activeConversation = conversations.find(
         (c) =>
             c.id === activeConversationId ||
             c.groupId === activeConversationId
     );
+
+    const handleCloseChat = () => {
+        setActiveConversationId(null);
+        openMobileMenu(); // Force the menu to slide in automatically on close
+    };
 
     if (!activeConversation) {
         return (
@@ -43,9 +48,10 @@ export const ChatPage = () => {
 
     return (
         <ChatRoom
+            key={activeConversation.id} // THIS IS THE MAGIC FIX: Destroys old state instantly on switch
             conversation={activeConversation}
             onViewProfile={setSelectedPreviewUser}
-            onCloseChat={() => setActiveConversationId(null)}
+            onCloseChat={handleCloseChat}
         />
     );
 };

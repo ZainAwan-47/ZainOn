@@ -88,6 +88,7 @@ export const MainAppLayout = () => {
     };
 
     const closeMobileMenu = () => setIsMobileMenuOpen(false);
+    const openMobileMenu = () => setIsMobileMenuOpen(true);
     const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
 
     const handleStartChatFromProfile = async (targetUser) => {
@@ -383,6 +384,7 @@ export const MainAppLayout = () => {
                             conversationsLoading,
                             startConversation,
                             setSelectedPreviewUser: handleViewProfile,
+                            openMobileMenu // Expose the open function to child routes
                         }}
                     />
                 </main>

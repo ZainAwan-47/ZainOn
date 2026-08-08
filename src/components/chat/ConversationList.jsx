@@ -1,6 +1,9 @@
 // React
 import React, { memo } from 'react';
 
+// Third Party
+import { motion, AnimatePresence } from 'framer-motion';
+
 // Components
 import ConversationItem from './ConversationItem';
 
@@ -37,7 +40,7 @@ export const ConversationList = memo(({
     }
 
     return (
-        <div className="flex flex-col space-y-1.5 p-1">
+        <div className="flex flex-col space-y-1.5 p-1 relative">
             <div className="flex items-center justify-between px-2 py-1 mb-1 select-none">
                 <span className="text-[10px] font-bold text-[var(--text-secondary)] opacity-80 uppercase tracking-wider">
                     Recent Chats
@@ -47,19 +50,29 @@ export const ConversationList = memo(({
                 </span>
             </div>
 
-            {conversations.map((conv) => (
-                <ConversationItem
-                    key={conv.id}
-                    conversation={conv}
-                    isActive={conv.id === activeConversationId}
-                    onClick={() => onSelectConversation && onSelectConversation(conv)}
-                    onDeleted={(deletedId) => {
-                        if (onDeleteConversation) {
-                            onDeleteConversation(deletedId);
-                        }
-                    }}
-                />
-            ))}
+            <AnimatePresence initial={false}>
+                {conversations.map((conv) => (
+                    <motion.div
+                        key={conv.id}
+                        layout // This single prop creates the buttery smooth vertical glide
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
+                    >
+                        <ConversationItem
+                            conversation={conv}
+                            isActive={conv.id === activeConversationId}
+                            onClick={() => onSelectConversation && onSelectConversation(conv)}
+                            onDeleted={(deletedId) => {
+                                if (onDeleteConversation) {
+                                    onDeleteConversation(deletedId);
+                                }
+                            }}
+                        />
+                    </motion.div>
+                ))}
+            </AnimatePresence>
         </div>
     );
 });

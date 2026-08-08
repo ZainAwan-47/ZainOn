@@ -40,7 +40,20 @@ export const useConversations = () => {
         const unsub = conversationService.subscribeToUserConversations(
             user.uid,
             (data) => {
-                setConversations(data);
+                // FIX: Intercept data and enforce strict local sorting.
+                // Firebase optimistic updates return null for serverTimestamp() initially.
+                // We treat null as Date.now() so the chat stays pinned to the top instantly.
+                const sortedData = [...data].sort((a, b) => {
+                    const getMillis = (ts) => {
+                        if (!ts) return Date.now(); // Pending optimistic update = happens right now
+                        if (typeof ts.toMillis === 'function') return ts.toMillis();
+                        if (ts instanceof Date) return ts.getTime();
+                        return 0;
+                    };
+                    return getMillis(b.lastActivity) - getMillis(a.lastActivity);
+                });
+
+                setConversations(sortedData);
                 setLoading(false);
             }
         );

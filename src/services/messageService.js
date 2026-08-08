@@ -47,6 +47,7 @@ export const messageService = {
                 createdAt: serverTimestamp(),
                 deliveryStatus: 'sent',
                 seenBy: [senderId],
+                seenAt: { [senderId]: serverTimestamp() }, // Track exact seen time for sender
                 consumedBy: [senderId], // Critical for non-retroactive read receipts
                 reactions: {},
                 isPinned: false,
@@ -221,6 +222,7 @@ export const messageService = {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, {
                     seenBy: arrayUnion(currentUid),
+                    [`seenAt.${currentUid}`]: serverTimestamp(), // Record exact precise timestamp when seen
                     consumedBy: arrayUnion(currentUid),
                     ...(isGroup ? {} : { deliveryStatus: 'read' }),
                 });

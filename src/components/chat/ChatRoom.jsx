@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 
 // Third Party
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
@@ -46,6 +46,9 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const [showScrollBadge, setShowScrollBadge] = useState(false);
     const [isFriend, setIsFriend] = useState(true);
 
+    // UI Debounce State for Loading Spinner
+    const [showLoading, setShowLoading] = useState(false);
+
     // Modal States
     const [viewingSeenBy, setViewingSeenBy] = useState(null);
     const [viewingReactions, setViewingReactions] = useState(null);
@@ -55,6 +58,18 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isGroup ? undefined : otherParticipant.uid
     );
 
+    // Debounce the loading indicator by 150ms to prevent cache-flicker
+    useEffect(() => {
+        let timer;
+        if (loading) {
+            timer = setTimeout(() => setShowLoading(true), 150);
+        } else {
+            setShowLoading(false);
+        }
+        return () => clearTimeout(timer);
+    }, [loading]);
+
+    // Check Friendship Status for 5-Message Limit
     useEffect(() => {
         if (isGroup || !user?.uid || !otherParticipant?.uid) return;
         const unsub = friendService.subscribeToFriendshipStatus(
@@ -132,12 +147,18 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         }
     }, [messages, processAcknowledgements]);
 
+    // INITIAL MOUNT INSTANT SCROLL
     useLayoutEffect(() => {
         if (!loading && messages.length > 0 && prevMessagesLengthRef.current === 0) {
-            scrollToBottom(true);
+            // Force synchronous direct DOM manipulation for instant paint
+            if (chatContainerRef.current) {
+                chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+            }
+            isNearBottomRef.current = true;
         }
-    }, [loading, messages.length, scrollToBottom]);
+    }, [loading, messages.length]);
 
+    // SUBSEQUENT NEW MESSAGE SCROLL LOGIC
     useLayoutEffect(() => {
         if (messages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
             const lastMsg = messages[messages.length - 1];
@@ -249,9 +270,13 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     if (!conversation) return null;
 
-    // Strict evaluation against the unbreakable database map counter per user
     const myNonFriendCount = conversation.nonFriendMessageCounts?.[user?.uid] || 0;
     const isLimitReached = !isGroup && !isFriend && myNonFriendCount >= 5;
+
+    // Explicitly build participant map for Direct Messages so Modals map properly
+    const activeParticipantsMap = isGroup
+        ? conversation.participants
+        : { [user.uid]: user, [otherParticipant.uid]: otherParticipant };
 
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-main)] transition-colors duration-300 overflow-hidden relative">
@@ -268,7 +293,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 {viewingSeenBy && (
                     <SeenByModal
                         message={viewingSeenBy}
-                        participants={conversation.participants}
+                        participants={activeParticipantsMap}
                         onClose={() => setViewingSeenBy(null)}
                     />
                 )}
@@ -278,7 +303,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 {viewingReactions && (
                     <ReactionDetailsModal
                         message={viewingReactions}
-                        participants={conversation.participants}
+                        participants={activeParticipantsMap}
                         onClose={() => setViewingReactions(null)}
                     />
                 )}
@@ -296,13 +321,17 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin relative"
+                className="flex-1 overflow-y-auto p-4 scrollbar-thin relative"
             >
                 {loading ? (
-                    <div className="flex flex-col items-center justify-center h-full space-y-3">
-                        <div className="w-7 h-7 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-                        <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading messages...</p>
-                    </div>
+                    showLoading ? (
+                        <div className="flex flex-col items-center justify-center h-full space-y-3">
+                            <div className="w-7 h-7 border-3 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                            <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading messages...</p>
+                        </div>
+                    ) : (
+                        <div className="flex-1" /> // Invisible spacer for the 150ms window
+                    )
                 ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-2 select-none">
                         {isGroup ? (
@@ -336,37 +365,44 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                         )}
                     </div>
                 ) : (
-                    messages.map((msg, index) => {
-                        const prevMsg = messages[index - 1];
-                        const showSeparator = shouldShowDateSeparator(msg, prevMsg);
-                        const dateLabel = getDateSeparatorLabel(msg.createdAt);
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="flex flex-col space-y-1"
+                    >
+                        {messages.map((msg, index) => {
+                            const prevMsg = messages[index - 1];
+                            const showSeparator = shouldShowDateSeparator(msg, prevMsg);
+                            const dateLabel = getDateSeparatorLabel(msg.createdAt);
 
-                        return (
-                            <React.Fragment key={msg.id}>
-                                {showSeparator && dateLabel && (
-                                    <div className="my-3 flex items-center justify-center select-none">
-                                        <span className="px-3 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider shadow-sm">
-                                            {dateLabel}
-                                        </span>
-                                    </div>
-                                )}
-                                <MessageBubble
-                                    message={msg}
-                                    isOwn={msg.senderId === user?.uid}
-                                    isGroup={isGroup}
-                                    recipientUid={isGroup ? '' : otherParticipant.uid}
-                                    currentUid={user?.uid}
-                                    onReact={handleToggleReaction}
-                                    onReply={handleSetReply}
-                                    onPin={handleTogglePin}
-                                    onStar={handleToggleStar}
-                                    isPinned={conversation.pinnedMessage?.id === msg.id}
-                                    onViewSeenBy={setViewingSeenBy}
-                                    onViewReactions={setViewingReactions}
-                                />
-                            </React.Fragment>
-                        );
-                    })
+                            return (
+                                <React.Fragment key={msg.id}>
+                                    {showSeparator && dateLabel && (
+                                        <div className="my-3 flex items-center justify-center select-none">
+                                            <span className="px-3 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-color)] text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider shadow-sm">
+                                                {dateLabel}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <MessageBubble
+                                        message={msg}
+                                        isOwn={msg.senderId === user?.uid}
+                                        isGroup={isGroup}
+                                        recipientUid={isGroup ? '' : otherParticipant.uid}
+                                        currentUid={user?.uid}
+                                        onReact={handleToggleReaction}
+                                        onReply={handleSetReply}
+                                        onPin={handleTogglePin}
+                                        onStar={handleToggleStar}
+                                        isPinned={conversation.pinnedMessage?.id === msg.id}
+                                        onViewSeenBy={setViewingSeenBy}
+                                        onViewReactions={setViewingReactions}
+                                    />
+                                </React.Fragment>
+                            );
+                        })}
+                    </motion.div>
                 )}
             </div>
 
