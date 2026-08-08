@@ -32,10 +32,11 @@ export const MessageSearchToolbar = ({
                 </span>
 
                 <div className="flex items-center space-x-1">
+                    {/* Up Button now triggers onNext (or swap depending on array direction) */}
                     <button
                         type="button"
-                        onClick={onPrev}
-                        disabled={totalMatches === 0 || currentIndex <= 0}
+                        onClick={onNext}
+                        disabled={totalMatches === 0 || currentIndex >= totalMatches - 1}
                         className="p-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-surface-hover)] transition-all cursor-pointer"
                         title="Previous match"
                     >
@@ -43,10 +44,11 @@ export const MessageSearchToolbar = ({
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
                         </svg>
                     </button>
+                    {/* Down Button now triggers onPrev */}
                     <button
                         type="button"
-                        onClick={onNext}
-                        disabled={totalMatches === 0 || currentIndex >= totalMatches - 1}
+                        onClick={onPrev}
+                        disabled={totalMatches === 0 || currentIndex <= 0}
                         className="p-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-primary)] disabled:opacity-30 hover:bg-[var(--bg-surface-hover)] transition-all cursor-pointer"
                         title="Next match"
                     >
