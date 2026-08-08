@@ -33,7 +33,8 @@ export const ThemeProvider = ({ children }) => {
         }
 
         if (enableAnimation) {
-            setTimeout(() => root.classList.remove('theme-transition'), 300);
+            // Cleanly remove the transition utility class after the animation completes
+            setTimeout(() => root.classList.remove('theme-transition'), 400);
         }
     }, []);
 
@@ -46,7 +47,7 @@ export const ThemeProvider = ({ children }) => {
     }, [theme]);
 
     return (
-        <ThemeContext.Provider value={{ theme, setTheme }}>
+        <ThemeContext.Provider value={{ theme, setTheme: (newTheme) => { applyTheme(newTheme, true); setTheme(newTheme); } }}>
             {children}
         </ThemeContext.Provider>
     );

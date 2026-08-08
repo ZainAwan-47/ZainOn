@@ -1,5 +1,5 @@
 // React
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 // Firebase
@@ -13,6 +13,7 @@ import { friendService } from '../../services/friendService';
 import Avatar from '../ui/Avatar';
 import PresenceIndicator from '../ui/PresenceIndicator';
 import PinnedMessageBanner from './PinnedMessageBanner';
+import IconButton from '../ui/IconButton';
 
 export const ChatHeader = memo(({
     conversation,
@@ -21,14 +22,27 @@ export const ChatHeader = memo(({
     onUnpin,
     onViewProfile,
     onCloseChat,
+    onOpenSearch,
+    onEnableMultiSelect,
 }) => {
     const { user } = useAuth();
     const isGroup = conversation?.type === 'group';
 
     const [liveParticipant, setLiveParticipant] = useState(participant || conversation?.otherParticipant || null);
     const [isFriend, setIsFriend] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const menuRef = useRef(null);
 
-    // Fetch real-time updates for the direct message participant
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setIsMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     useEffect(() => {
         if (isGroup || !liveParticipant?.uid) return;
         const unsub = onSnapshot(doc(db, 'users', liveParticipant.uid), (docSnap) => {
@@ -39,7 +53,6 @@ export const ChatHeader = memo(({
         return () => unsub();
     }, [isGroup, liveParticipant?.uid]);
 
-    // Live Friendship status for Last Seen logic
     useEffect(() => {
         if (isGroup || !user?.uid || !liveParticipant?.uid) return;
         const unsub = friendService.subscribeToFriendshipStatus(
@@ -54,7 +67,6 @@ export const ChatHeader = memo(({
 
     if (!isGroup && !liveParticipant) return null;
 
-    // Respect privacy parameters synchronously with ProfilePreviewModal
     const onlineStatusEnabled = liveParticipant?.privacy?.onlineStatus !== false;
     const isOnlineEffective = onlineStatusEnabled ? liveParticipant?.isOnline : false;
 
@@ -67,8 +79,8 @@ export const ChatHeader = memo(({
     }
 
     return (
-        <div className="flex flex-col shrink-0 select-none">
-            <div className="h-[72px] px-5 bg-[var(--bg-surface)]/90 border-b border-[var(--border-color)] flex items-center justify-between backdrop-blur-md">
+        <div className="flex flex-col shrink-0 select-none relative z-40">
+            <div className="h-[72px] px-5 bg-[var(--bg-surface)]/95 border-b border-[var(--border-color)] flex items-center justify-between backdrop-blur-md">
 
                 {isGroup ? (
                     <div
@@ -121,12 +133,49 @@ export const ChatHeader = memo(({
                 )}
 
                 <div className="flex items-center space-x-1 shrink-0">
+                    <div className="relative z-50" ref={menuRef}>
+                        <IconButton onClick={() => setIsMenuOpen((prev) => !prev)} title="More Options" size="sm">
+                            <svg className="w-5 h-5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                        </IconButton>
+
+                        {isMenuOpen && (
+                            <div className="absolute right-0 top-12 w-48 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-2xl p-1.5 z-[9999] flex flex-col space-y-1 animate-in fade-in duration-200">
+                                <button
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        if (onOpenSearch) onOpenSearch();
+                                    }}
+                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] cursor-pointer"
+                                >
+                                    <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    <span>Search Messages</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsMenuOpen(false);
+                                        if (onEnableMultiSelect) onEnableMultiSelect();
+                                    }}
+                                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] cursor-pointer"
+                                >
+                                    <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                    <span>Select Messages</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     {onCloseChat && (
                         <button
                             type="button"
                             onClick={onCloseChat}
-                            className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all focus:outline-none active:scale-95"
-                            title="Close Chat"
+                            className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] rounded-xl transition-all focus:outline-none active:scale-95 cursor-pointer"
+                            title="Close Chat Room"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />

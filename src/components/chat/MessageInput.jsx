@@ -1,5 +1,5 @@
 // React
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 
 // Components
 import EmojiPicker from './EmojiPicker';
@@ -13,15 +13,21 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
 
     const enterToSend = user?.chatPrefs?.enterToSend ?? true;
 
-    // Professional dynamic height adjustment: expands upwards as lines are added
+    // Auto-focus textarea when replyingTo changes
+    useEffect(() => {
+        if (replyingTo && textareaRef.current) {
+            textareaRef.current.focus();
+        }
+    }, [replyingTo]);
+
     const handleInput = (e) => {
         const val = e.target.value;
         setText(val);
 
         const textarea = textareaRef.current;
         if (textarea) {
-            textarea.style.height = 'auto'; // Reset height temporarily to recalculate scrollHeight accurately
-            textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`; // Capped at max-h-28 (112px)
+            textarea.style.height = 'auto';
+            textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`;
         }
     };
 
@@ -34,7 +40,6 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
         setText('');
         if (onCancelReply) onCancelReply();
 
-        // Reset textarea height back to single line after submission
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             textareaRef.current.focus();
@@ -47,15 +52,12 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                 e.preventDefault();
                 handleSubmit(e);
             }
-            // If enterToSend is false, or if shiftKey is pressed, 
-            // it naturally inserts a newline and auto-expands upwards.
         }
     };
 
     const handleSelectEmoji = (emoji) => {
         setText((prev) => {
             const nextText = prev + emoji;
-            // Trigger height expansion after emoji injection
             setTimeout(() => {
                 const textarea = textareaRef.current;
                 if (textarea) {
@@ -86,16 +88,20 @@ export const MessageInput = memo(({ onSend, replyingTo, onCancelReply, disabled 
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                         </svg>
                         <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-[10px] font-bold text-[var(--color-primary)] opacity-90">
-                                Replying to {replyingTo.senderName || 'User'}
-                            </span>
-                            <p className="text-[var(--text-primary)] truncate opacity-80">{replyingTo.text}</p>
+                            {replyingTo.senderName && (
+                                <span className="text-[10px] font-semibold text-[var(--color-primary)] opacity-90 mb-0.5">
+                                    {replyingTo.senderName}
+                                </span>
+                            )}
+                            <p className="text-[var(--text-primary)] truncate opacity-80">
+                                {replyingTo.isDeleted ? 'This message was deleted' : replyingTo.text}
+                            </p>
                         </div>
                     </div>
                     <button
                         type="button"
                         onClick={onCancelReply}
-                        className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0 focus:outline-none transition-colors"
+                        className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0 focus:outline-none transition-colors cursor-pointer"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />

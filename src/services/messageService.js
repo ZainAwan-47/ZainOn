@@ -17,6 +17,14 @@ import {
 // Firebase
 import { db } from '../firebase/firestore';
 
+const getMillisFromTimestamp = (ts) => {
+    if (!ts) return null;
+    if (typeof ts.toMillis === 'function') return ts.toMillis();
+    if (ts instanceof Date) return ts.getTime();
+    const parsed = new Date(ts).getTime();
+    return isNaN(parsed) ? null : parsed;
+};
+
 export const messageService = {
     sendMessage: async (
         conversationId,
@@ -24,7 +32,7 @@ export const messageService = {
         text,
         recipientId,
         replyTo = null,
-        isFriend = true // NEW: Track friendship status on send
+        isFriend = true
     ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
@@ -47,17 +55,22 @@ export const messageService = {
                 createdAt: serverTimestamp(),
                 deliveryStatus: 'sent',
                 seenBy: [senderId],
-                seenAt: { [senderId]: serverTimestamp() }, // Track exact seen time for sender
-                consumedBy: [senderId], // Critical for non-retroactive read receipts
+                seenAt: { [senderId]: serverTimestamp() },
+                consumedBy: [senderId],
                 reactions: {},
                 isPinned: false,
                 isStarred: {},
+                isDeleted: false,
+                isEdited: false,
+                deletedFor: {},
+                deletedForEveryone: false,
                 replyTo: replyTo
                     ? {
                         id: replyTo.id,
                         text: replyTo.text,
                         senderId: replyTo.senderId,
                         senderName: replyTo.senderName || 'User',
+                        isDeleted: replyTo.isDeleted || false,
                     }
                     : null,
             };
@@ -82,7 +95,6 @@ export const messageService = {
             if (recipientId) {
                 convUpdateData[`unreadCounts.${recipientId}`] = increment(1);
 
-                // UNBREAKABLE PER-USER LIMIT LOGIC:
                 if (!isFriend) {
                     convUpdateData[`nonFriendMessageCounts.${senderId}`] = increment(1);
                 } else {
@@ -106,6 +118,161 @@ export const messageService = {
             return messageId;
         } catch (error) {
             console.error('[messageService.sendMessage]:', error);
+            throw error;
+        }
+    },
+
+    editMessage: async (conversationId, messageId, currentUid, newText) => {
+        const trimmed = newText?.trim();
+        if (!conversationId || !messageId || !currentUid || !trimmed) return;
+
+        try {
+            const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+            const msgSnap = await getDoc(msgRef);
+            if (!msgSnap.exists()) throw new Error('Message not found.');
+
+            const data = msgSnap.data();
+            if (data.senderId !== currentUid) {
+                throw new Error('You can only edit your own messages.');
+            }
+
+            const createdAtMillis = getMillisFromTimestamp(data.createdAt);
+            if (createdAtMillis && Date.now() - createdAtMillis > 60000) {
+                throw new Error('Messages can only be edited within 1 minute of sending.');
+            }
+
+            await updateDoc(msgRef, {
+                text: trimmed,
+                isEdited: true,
+            });
+        } catch (error) {
+            console.error('[messageService.editMessage]:', error);
+            throw error;
+        }
+    },
+
+    deleteMessage: async (conversationId, messageId, currentUid, deleteForEveryone = false) => {
+        if (!conversationId || !messageId || !currentUid) return;
+
+        try {
+            const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+
+            if (deleteForEveryone) {
+                const msgSnap = await getDoc(msgRef);
+                if (!msgSnap.exists()) throw new Error('Message not found.');
+                const data = msgSnap.data();
+
+                if (data.senderId !== currentUid) {
+                    throw new Error('You can only delete your own messages for everyone.');
+                }
+
+                const seenByOthers = (data.seenBy || []).filter(id => id !== currentUid);
+                const isUnread = seenByOthers.length === 0;
+
+                if (!isUnread) {
+                    let earliestReadMillis = null;
+                    const seenAtMap = data.seenAt || {};
+                    seenByOthers.forEach(uid => {
+                        const millis = getMillisFromTimestamp(seenAtMap[uid]);
+                        if (millis && (!earliestReadMillis || millis < earliestReadMillis)) {
+                            earliestReadMillis = millis;
+                        }
+                    });
+
+                    if (!earliestReadMillis) {
+                        earliestReadMillis = getMillisFromTimestamp(data.createdAt);
+                    }
+
+                    if (earliestReadMillis) {
+                        const diffMinutes = (Date.now() - earliestReadMillis) / (1000 * 60);
+                        if (diffMinutes > 3) {
+                            throw new Error('Read messages cannot be deleted for everyone after 3 minutes of being read.');
+                        }
+                    }
+                }
+
+                await updateDoc(msgRef, {
+                    text: 'This message was deleted',
+                    isDeleted: true,
+                    deletedForEveryone: true,
+                    mediaUrl: null,
+                    reactions: {},
+                });
+            } else {
+                await updateDoc(msgRef, {
+                    [`deletedFor.${currentUid}`]: true,
+                });
+            }
+        } catch (error) {
+            console.error('[messageService.deleteMessage]:', error);
+            throw error;
+        }
+    },
+
+    deleteMultipleMessages: async (conversationId, messageIds = [], currentUid, deleteForEveryone = false) => {
+        if (!conversationId || messageIds.length === 0 || !currentUid) return;
+
+        try {
+            const batch = writeBatch(db);
+
+            if (deleteForEveryone) {
+                const messagePromises = messageIds.map((id) =>
+                    getDoc(doc(db, 'conversations', conversationId, 'messages', id))
+                );
+                const snapshots = await Promise.all(messagePromises);
+
+                snapshots.forEach((msgSnap) => {
+                    if (!msgSnap.exists()) return;
+                    const data = msgSnap.data();
+                    if (data.senderId !== currentUid) return;
+
+                    const seenByOthers = (data.seenBy || []).filter(id => id !== currentUid);
+                    const isUnread = seenByOthers.length === 0;
+
+                    let allowDelete = true;
+                    if (!isUnread) {
+                        let earliestReadMillis = null;
+                        const seenAtMap = data.seenAt || {};
+                        seenByOthers.forEach(uid => {
+                            const millis = getMillisFromTimestamp(seenAtMap[uid]);
+                            if (millis && (!earliestReadMillis || millis < earliestReadMillis)) {
+                                earliestReadMillis = millis;
+                            }
+                        });
+
+                        if (!earliestReadMillis) {
+                            earliestReadMillis = getMillisFromTimestamp(data.createdAt);
+                        }
+
+                        if (earliestReadMillis) {
+                            const diffMinutes = (Date.now() - earliestReadMillis) / (1000 * 60);
+                            if (diffMinutes > 3) allowDelete = false;
+                        }
+                    }
+
+                    if (allowDelete) {
+                        const msgRef = doc(db, 'conversations', conversationId, 'messages', msgSnap.id);
+                        batch.update(msgRef, {
+                            text: 'This message was deleted',
+                            isDeleted: true,
+                            deletedForEveryone: true,
+                            mediaUrl: null,
+                            reactions: {},
+                        });
+                    }
+                });
+            } else {
+                messageIds.forEach((messageId) => {
+                    const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+                    batch.update(msgRef, {
+                        [`deletedFor.${currentUid}`]: true,
+                    });
+                });
+            }
+
+            await batch.commit();
+        } catch (error) {
+            console.error('[messageService.deleteMultipleMessages]:', error);
             throw error;
         }
     },
@@ -143,6 +310,7 @@ export const messageService = {
                         };
                     })
                     .filter((msg) => {
+                        if (msg.deletedFor?.[currentUid]) return false;
                         if (!userClearedAt) return true;
                         const msgTime =
                             msg.createdAt?.toMillis?.() ||
@@ -222,7 +390,7 @@ export const messageService = {
                 const msgRef = doc(db, 'conversations', conversationId, 'messages', msg.id);
                 batch.update(msgRef, {
                     seenBy: arrayUnion(currentUid),
-                    [`seenAt.${currentUid}`]: serverTimestamp(), // Record exact precise timestamp when seen
+                    [`seenAt.${currentUid}`]: serverTimestamp(),
                     consumedBy: arrayUnion(currentUid),
                     ...(isGroup ? {} : { deliveryStatus: 'read' }),
                 });
@@ -250,21 +418,19 @@ export const messageService = {
 
             const latestData = snap.data();
             const latestReactions = latestData.reactions || {};
-            const existingUsers = latestReactions[emoji] || [];
-            const hasReacted = existingUsers.includes(currentUid);
+            const currentEmojiUsers = latestReactions[emoji] || [];
+            const hasReactedToThis = currentEmojiUsers.includes(currentUid);
 
-            let updatedUsers;
-            if (hasReacted) {
-                updatedUsers = existingUsers.filter((id) => id !== currentUid);
-            } else {
-                updatedUsers = [...existingUsers, currentUid];
-            }
+            const updatedReactions = {};
+            Object.keys(latestReactions).forEach((key) => {
+                const filteredUsers = latestReactions[key].filter((id) => id !== currentUid);
+                if (filteredUsers.length > 0) {
+                    updatedReactions[key] = filteredUsers;
+                }
+            });
 
-            const updatedReactions = { ...latestReactions };
-            if (updatedUsers.length === 0) {
-                delete updatedReactions[emoji];
-            } else {
-                updatedReactions[emoji] = updatedUsers;
+            if (!hasReactedToThis) {
+                updatedReactions[emoji] = [...(updatedReactions[emoji] || []), currentUid];
             }
 
             await updateDoc(msgRef, { reactions: updatedReactions });

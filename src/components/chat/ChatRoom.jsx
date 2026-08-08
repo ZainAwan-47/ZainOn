@@ -28,6 +28,8 @@ import MessageInput from './MessageInput';
 import GroupProfileModal from '../groups/GroupProfileModal';
 import SeenByModal from './SeenByModal';
 import ReactionDetailsModal from './ReactionDetailsModal';
+import MessageSearchToolbar from './MessageSearchToolbar';
+import DeleteMessageModal from './DeleteMessageModal';
 
 export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const { user } = useAuth();
@@ -35,7 +37,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const isGroup = conversation?.type === 'group';
     const otherParticipant = conversation?.otherParticipant || {};
 
-    // Refs
     const chatContainerRef = useRef(null);
     const prevMessagesLengthRef = useRef(0);
     const isNearBottomRef = useRef(true);
@@ -46,10 +47,23 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const [showScrollBadge, setShowScrollBadge] = useState(false);
     const [isFriend, setIsFriend] = useState(true);
 
-    // UI Debounce State for Loading Spinner
-    const [showLoading, setShowLoading] = useState(false);
+    const [showInlineSearch, setShowInlineSearch] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [matchingMessageIds, setMatchingMessageIds] = useState([]);
+    const [searchIndex, setSearchIndex] = useState(0);
 
-    // Modal States
+    const [editingMessageId, setEditingMessageId] = useState(null);
+
+    const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+    const [selectedMessageIds, setSelectedMessageIds] = useState([]);
+    const [deleteModalState, setDeleteModalState] = useState({
+        isOpen: false,
+        message: null,
+        canDeleteForEveryone: false,
+        isBulk: false,
+    });
+
+    const [showLoading, setShowLoading] = useState(false);
     const [viewingSeenBy, setViewingSeenBy] = useState(null);
     const [viewingReactions, setViewingReactions] = useState(null);
 
@@ -58,7 +72,12 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isGroup ? undefined : otherParticipant.uid
     );
 
-    // Debounce the loading indicator by 150ms to prevent cache-flicker
+    const [displayMessages, setDisplayMessages] = useState([]);
+
+    useEffect(() => {
+        setDisplayMessages(messages);
+    }, [messages]);
+
     useEffect(() => {
         let timer;
         if (loading) {
@@ -69,7 +88,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         return () => clearTimeout(timer);
     }, [loading]);
 
-    // Check Friendship Status for 5-Message Limit
     useEffect(() => {
         if (isGroup || !user?.uid || !otherParticipant?.uid) return;
         const unsub = friendService.subscribeToFriendshipStatus(
@@ -81,6 +99,51 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         );
         return () => unsub();
     }, [user?.uid, otherParticipant?.uid, isGroup]);
+
+    // Search Matching Logic with Newest-First Priority (.reverse())
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setMatchingMessageIds([]);
+            setSearchIndex(0);
+            return;
+        }
+        const term = searchQuery.toLowerCase();
+        const matched = displayMessages
+            .filter((msg) => msg.text && msg.text.toLowerCase().includes(term) && !msg.isDeleted)
+            .map((m) => m.id)
+            .reverse(); // Prioritize the most recent match first!
+
+        setMatchingMessageIds(matched);
+        setSearchIndex(0);
+        if (matched.length > 0) {
+            scrollToMessageId(matched[0]);
+        }
+    }, [searchQuery, displayMessages]);
+
+    const scrollToMessageId = (msgId) => {
+        const el = document.getElementById(`msg-${msgId}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('bg-[var(--color-primary)]/15', 'transition-colors', 'duration-700', 'rounded-2xl');
+            setTimeout(() => {
+                el.classList.remove('bg-[var(--color-primary)]/15');
+            }, 1500);
+        }
+    };
+
+    const handleNextMatch = () => {
+        if (matchingMessageIds.length === 0) return;
+        const nextIdx = (searchIndex + 1) % matchingMessageIds.length;
+        setSearchIndex(nextIdx);
+        scrollToMessageId(matchingMessageIds[nextIdx]);
+    };
+
+    const handlePrevMatch = () => {
+        if (matchingMessageIds.length === 0) return;
+        const prevIdx = (searchIndex - 1 + matchingMessageIds.length) % matchingMessageIds.length;
+        setSearchIndex(prevIdx);
+        scrollToMessageId(matchingMessageIds[prevIdx]);
+    };
 
     const scrollToBottom = useCallback((instant = false) => {
         if (!chatContainerRef.current) return;
@@ -94,11 +157,11 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     }, []);
 
     const processAcknowledgements = useCallback(() => {
-        if (!conversation?.id || !user?.uid || messages.length === 0) return;
+        if (!conversation?.id || !user?.uid || displayMessages.length === 0) return;
 
         const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
 
-        const unackedDelivered = messages.filter(
+        const unackedDelivered = displayMessages.filter(
             (m) =>
                 m.senderId !== user.uid &&
                 m.deliveryStatus === 'sent' &&
@@ -109,7 +172,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
         }
 
-        const unconsumed = messages.filter(
+        const unconsumed = displayMessages.filter(
             (m) =>
                 m.senderId !== user.uid &&
                 (!m.consumedBy || !m.consumedBy.includes(user.uid))
@@ -122,7 +185,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 messageService.markAsConsumedOnly(conversation.id, user.uid, unconsumed);
             }
         }
-    }, [conversation?.id, user?.uid, messages, isGroup, user?.privacy?.readReceipts]);
+    }, [conversation?.id, user?.uid, displayMessages, isGroup, user?.privacy?.readReceipts]);
 
     const handleScroll = useCallback(() => {
         if (!chatContainerRef.current) return;
@@ -145,23 +208,20 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         if (isNearBottomRef.current) {
             processAcknowledgements();
         }
-    }, [messages, processAcknowledgements]);
+    }, [displayMessages, processAcknowledgements]);
 
-    // INITIAL MOUNT INSTANT SCROLL
     useLayoutEffect(() => {
-        if (!loading && messages.length > 0 && prevMessagesLengthRef.current === 0) {
-            // Force synchronous direct DOM manipulation for instant paint
+        if (!loading && displayMessages.length > 0 && prevMessagesLengthRef.current === 0) {
             if (chatContainerRef.current) {
                 chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
             }
             isNearBottomRef.current = true;
         }
-    }, [loading, messages.length]);
+    }, [loading, displayMessages.length]);
 
-    // SUBSEQUENT NEW MESSAGE SCROLL LOGIC
     useLayoutEffect(() => {
-        if (messages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
-            const lastMsg = messages[messages.length - 1];
+        if (displayMessages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
+            const lastMsg = displayMessages[displayMessages.length - 1];
             const isOwnMsg = lastMsg?.senderId === user?.uid;
 
             if (isOwnMsg || isNearBottomRef.current) {
@@ -170,8 +230,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 setShowScrollBadge(true);
             }
         }
-        prevMessagesLengthRef.current = messages.length;
-    }, [messages, user?.uid, scrollToBottom]);
+        prevMessagesLengthRef.current = displayMessages.length;
+    }, [displayMessages, user?.uid, scrollToBottom]);
 
     const handleSendWithReply = useCallback(
         async (text, replyToMsg) => {
@@ -182,7 +242,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     text,
                     isGroup ? null : otherParticipant.uid,
                     replyToMsg,
-                    isFriend // Pass friendship status directly to the backend function
+                    isFriend
                 );
                 setReplyingTo(null);
                 scrollToBottom(false);
@@ -246,15 +306,12 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 id: targetMsg.id,
                 text: targetMsg.text,
                 senderId: targetMsg.senderId,
-                senderName:
-                    targetMsg.senderId === user?.uid
-                        ? 'You'
-                        : isGroup
-                            ? conversation.participants?.[targetMsg.senderId]?.fullName || 'Member'
-                            : otherParticipant.fullName,
+                senderName: isGroup
+                    ? conversation.participants?.[targetMsg.senderId]?.fullName || 'Member'
+                    : null,
             });
         },
-        [user?.uid, isGroup, conversation?.participants, otherParticipant.fullName]
+        [isGroup, conversation?.participants]
     );
 
     const handleProfileViewTrigger = useCallback(
@@ -268,12 +325,121 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         [isGroup, onViewProfile]
     );
 
+    const handleEditSubmit = async (messageId, newText) => {
+        setEditingMessageId(null);
+        setDisplayMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, text: newText, isEdited: true } : m))
+        );
+        try {
+            await messageService.editMessage(conversation.id, messageId, user.uid, newText);
+        } catch (error) {
+            console.error('Failed to edit message:', error);
+        }
+    };
+
+    const canDeleteMessageForEveryone = (msg) => {
+        if (msg.senderId !== user?.uid || msg.deletedForEveryone) return false;
+        const seenByOthers = (msg.seenBy || []).filter(id => id !== user.uid);
+        if (seenByOthers.length === 0) return true;
+
+        let earliestReadMillis = null;
+        const seenAtMap = msg.seenAt || {};
+        seenByOthers.forEach(uid => {
+            const ts = seenAtMap[uid];
+            const millis = ts?.toMillis ? ts.toMillis() : (ts ? new Date(ts).getTime() : null);
+            if (millis && (!earliestReadMillis || millis < earliestReadMillis)) {
+                earliestReadMillis = millis;
+            }
+        });
+
+        if (!earliestReadMillis) {
+            const createdAtMillis = msg.createdAt?.toMillis ? msg.createdAt.toMillis() : (msg.createdAt ? new Date(msg.createdAt).getTime() : null);
+            earliestReadMillis = createdAtMillis;
+        }
+
+        if (!earliestReadMillis) return false;
+        const diffMinutes = (Date.now() - earliestReadMillis) / (1000 * 60);
+        return diffMinutes <= 3;
+    };
+
+    const handleOpenDeleteModalForSingle = (msg) => {
+        setDeleteModalState({
+            isOpen: true,
+            message: msg,
+            canDeleteForEveryone: canDeleteMessageForEveryone(msg),
+            isBulk: false,
+        });
+    };
+
+    const handleOpenDeleteModalForBulk = () => {
+        if (selectedMessageIds.length === 0) return;
+        const selectedMsgs = displayMessages.filter(m => selectedMessageIds.includes(m.id));
+        const allOwn = selectedMsgs.every(m => m.senderId === user.uid);
+        const canBulkEveryone = allOwn && selectedMsgs.every(m => canDeleteMessageForEveryone(m));
+
+        setDeleteModalState({
+            isOpen: true,
+            message: null,
+            canDeleteForEveryone: canBulkEveryone,
+            isBulk: true,
+        });
+    };
+
+    const handleExecuteDelete = async (deleteForEveryone) => {
+        const currentModalState = { ...deleteModalState };
+        setDeleteModalState({ isOpen: false, message: null, canDeleteForEveryone: false, isBulk: false });
+
+        const idsToProcess = currentModalState.isBulk
+            ? [...selectedMessageIds]
+            : [currentModalState.message?.id].filter(Boolean);
+
+        if (idsToProcess.length === 0) return;
+
+        setDisplayMessages((prev) => {
+            if (deleteForEveryone) {
+                return prev.map(m => idsToProcess.includes(m.id) ? { ...m, isDeleted: true, text: 'This message was deleted', reactions: {} } : m);
+            } else {
+                return prev.filter(m => !idsToProcess.includes(m.id));
+            }
+        });
+
+        if (currentModalState.isBulk) {
+            setSelectedMessageIds([]);
+            setIsMultiSelectMode(false);
+        }
+
+        try {
+            if (currentModalState.isBulk) {
+                await messageService.deleteMultipleMessages(
+                    conversation.id,
+                    idsToProcess,
+                    user.uid,
+                    deleteForEveryone
+                );
+            } else if (currentModalState.message) {
+                await messageService.deleteMessage(
+                    conversation.id,
+                    currentModalState.message.id,
+                    user.uid,
+                    deleteForEveryone
+                );
+            }
+        } catch (error) {
+            console.error('Failed to delete message:', error);
+        }
+    };
+
+    const handleToggleSelectMessage = (msgId) => {
+        setSelectedMessageIds((prev) =>
+            prev.includes(msgId) ? prev.filter((id) => id !== msgId) : [...prev, msgId]
+        );
+    };
+
     if (!conversation) return null;
 
     const myNonFriendCount = conversation.nonFriendMessageCounts?.[user?.uid] || 0;
     const isLimitReached = !isGroup && !isFriend && myNonFriendCount >= 5;
 
-    // Explicitly build participant map for Direct Messages so Modals map properly
     const activeParticipantsMap = isGroup
         ? conversation.participants
         : { [user.uid]: user, [otherParticipant.uid]: otherParticipant };
@@ -288,6 +454,13 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     onClose={() => setIsGroupProfileOpen(false)}
                 />
             )}
+
+            <DeleteMessageModal
+                isOpen={deleteModalState.isOpen}
+                onClose={() => setDeleteModalState({ isOpen: false, message: null, canDeleteForEveryone: false, isBulk: false })}
+                onDelete={handleExecuteDelete}
+                canDeleteForEveryone={deleteModalState.canDeleteForEveryone}
+            />
 
             <AnimatePresence>
                 {viewingSeenBy && (
@@ -316,7 +489,54 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 onUnpin={handleUnpinHeader}
                 onViewProfile={handleProfileViewTrigger}
                 onCloseChat={onCloseChat}
+                onOpenSearch={() => setShowInlineSearch(true)}
+                onEnableMultiSelect={() => {
+                    setIsMultiSelectMode(true);
+                    setSelectedMessageIds([]);
+                }}
             />
+
+            {showInlineSearch && (
+                <MessageSearchToolbar
+                    query={searchQuery}
+                    setQuery={setSearchQuery}
+                    currentIndex={searchIndex}
+                    totalMatches={matchingMessageIds.length}
+                    onPrev={handlePrevMatch}
+                    onNext={handleNextMatch}
+                    onClose={() => {
+                        setShowInlineSearch(false);
+                        setSearchQuery('');
+                    }}
+                />
+            )}
+
+            {isMultiSelectMode && (
+                <div className="bg-[var(--bg-surface)] border-b border-[var(--border-color)] px-6 py-3 flex items-center justify-between shrink-0 shadow-md animate-in slide-in-from-top duration-200">
+                    <div className="flex items-center space-x-3">
+                        <span className="text-xs font-bold text-[var(--text-primary)]">
+                            {selectedMessageIds.length} selected
+                        </span>
+                        <button
+                            onClick={() => {
+                                setIsMultiSelectMode(false);
+                                setSelectedMessageIds([]);
+                            }}
+                            className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={handleOpenDeleteModalForBulk}
+                        disabled={selectedMessageIds.length === 0}
+                        className="px-4 py-1.5 bg-[var(--color-danger)] text-white text-xs font-bold rounded-xl hover:opacity-90 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
+                    >
+                        Delete Selected
+                    </button>
+                </div>
+            )}
 
             <div
                 ref={chatContainerRef}
@@ -330,9 +550,9 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             <p className="text-xs font-semibold text-[var(--text-secondary)]">Loading messages...</p>
                         </div>
                     ) : (
-                        <div className="flex-1" /> // Invisible spacer for the 150ms window
+                        <div className="flex-1" />
                     )
-                ) : messages.length === 0 ? (
+                ) : displayMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-2 select-none">
                         {isGroup ? (
                             <>
@@ -351,7 +571,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             <>
                                 <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-secondary)] mb-1 shadow-sm">
                                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                     </svg>
                                 </div>
                                 <span className="text-xs font-bold text-[var(--text-primary)]">No Messages Yet</span>
@@ -365,14 +585,9 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                         )}
                     </div>
                 ) : (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.3, ease: 'easeOut' }}
-                        className="flex flex-col space-y-1"
-                    >
-                        {messages.map((msg, index) => {
-                            const prevMsg = messages[index - 1];
+                    <div className="flex flex-col space-y-1">
+                        {displayMessages.map((msg, index) => {
+                            const prevMsg = displayMessages[index - 1];
                             const showSeparator = shouldShowDateSeparator(msg, prevMsg);
                             const dateLabel = getDateSeparatorLabel(msg.createdAt);
 
@@ -385,24 +600,37 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                             </span>
                                         </div>
                                     )}
-                                    <MessageBubble
-                                        message={msg}
-                                        isOwn={msg.senderId === user?.uid}
-                                        isGroup={isGroup}
-                                        recipientUid={isGroup ? '' : otherParticipant.uid}
-                                        currentUid={user?.uid}
-                                        onReact={handleToggleReaction}
-                                        onReply={handleSetReply}
-                                        onPin={handleTogglePin}
-                                        onStar={handleToggleStar}
-                                        isPinned={conversation.pinnedMessage?.id === msg.id}
-                                        onViewSeenBy={setViewingSeenBy}
-                                        onViewReactions={setViewingReactions}
-                                    />
+                                    <div id={`msg-${msg.id}`}>
+                                        <MessageBubble
+                                            message={msg}
+                                            isOwn={msg.senderId === user?.uid}
+                                            isGroup={isGroup}
+                                            recipientUid={isGroup ? '' : otherParticipant.uid}
+                                            currentUid={user?.uid}
+                                            onReact={handleToggleReaction}
+                                            onReply={handleSetReply}
+                                            onPin={handleTogglePin}
+                                            onStar={handleToggleStar}
+                                            onDelete={handleOpenDeleteModalForSingle}
+                                            onEditSubmit={handleEditSubmit}
+                                            isPinned={conversation.pinnedMessage?.id === msg.id}
+                                            isMultiSelectMode={isMultiSelectMode}
+                                            isSelected={selectedMessageIds.includes(msg.id)}
+                                            onToggleSelect={handleToggleSelectMessage}
+                                            onViewSeenBy={setViewingSeenBy}
+                                            onViewReactions={setViewingReactions}
+                                            searchQuery={searchQuery}
+                                            onScrollToMessage={scrollToMessageId}
+                                            isEditing={editingMessageId === msg.id}
+                                            onStartEdit={setEditingMessageId}
+                                            onCancelEdit={() => setEditingMessageId(null)}
+                                            isAnyEditingActive={Boolean(editingMessageId)}
+                                        />
+                                    </div>
                                 </React.Fragment>
                             );
                         })}
-                    </motion.div>
+                    </div>
                 )}
             </div>
 
