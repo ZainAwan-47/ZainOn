@@ -8,6 +8,7 @@ import {
     query,
     where,
     writeBatch,
+    setDoc,
 } from 'firebase/firestore';
 
 // Firebase & Constants
@@ -167,6 +168,29 @@ export const groupService = {
             batch.set(convRef, conversationData);
 
             await batch.commit();
+
+            // Emit notifications for added members upon group creation
+            try {
+                const ownerName = owner.fullName || owner.displayName || 'Someone';
+                for (const friend of uniqueFriends) {
+                    const notifRef = doc(collection(db, 'users', friend.uid, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: 'group_added',
+                        title: 'Added to Group',
+                        body: `${ownerName} added you to group "${trimmedName}".`,
+                        read: false,
+                        actorId: owner.uid,
+                        actorName: ownerName,
+                        actorPhotoURL: owner.photoURL || '',
+                        targetId: groupId,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('[createGroup notifications failed]:', notifErr);
+            }
+
             return groupId;
         } catch (error) {
             console.error('[groupService.createGroup]:', error);
@@ -232,7 +256,7 @@ export const groupService = {
     /**
      * Adds new members to an existing group.
      */
-    addMember: async (groupId, newFriends = []) => {
+    addMember: async (groupId, newFriends = [], actorUid = null) => {
         if (!groupId || newFriends.length === 0) return;
 
         try {
@@ -285,6 +309,38 @@ export const groupService = {
             });
 
             await batch.commit();
+
+            // Emit notification for added members
+            try {
+                let actorName = 'Admin';
+                let actorPhoto = '';
+                if (actorUid) {
+                    const actorDoc = await getDoc(doc(db, 'users', actorUid));
+                    if (actorDoc.exists()) {
+                        actorName = actorDoc.data().fullName || 'Admin';
+                        actorPhoto = actorDoc.data().photoURL || '';
+                    }
+                }
+
+                for (const f of newFriends) {
+                    if (f.uid === actorUid) continue;
+                    const notifRef = doc(collection(db, 'users', f.uid, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: 'group_added',
+                        title: 'Added to Group',
+                        body: `${actorName} added you to group "${groupData.name}".`,
+                        read: false,
+                        actorId: actorUid || '',
+                        actorName,
+                        actorPhotoURL: actorPhoto,
+                        targetId: groupId,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('[addMember notification failed]:', notifErr);
+            }
         } catch (error) {
             console.error('[groupService.addMember]:', error);
             throw new Error(formatGroupError(error));
@@ -294,7 +350,7 @@ export const groupService = {
     /**
      * Removes a member from the group.
      */
-    removeMember: async (groupId, targetUid) => {
+    removeMember: async (groupId, targetUid, actorUid = null) => {
         if (!groupId || !targetUid) return;
 
         try {
@@ -337,6 +393,35 @@ export const groupService = {
             });
 
             await batch.commit();
+
+            // Emit notification if removed by someone else
+            if (actorUid && actorUid !== targetUid) {
+                try {
+                    let actorName = 'Admin';
+                    let actorPhoto = '';
+                    const actorDoc = await getDoc(doc(db, 'users', actorUid));
+                    if (actorDoc.exists()) {
+                        actorName = actorDoc.data().fullName || 'Admin';
+                        actorPhoto = actorDoc.data().photoURL || '';
+                    }
+
+                    const notifRef = doc(collection(db, 'users', targetUid, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: 'group_removed',
+                        title: 'Removed from Group',
+                        body: `${actorName} removed you from group "${data.name}".`,
+                        read: false,
+                        actorId: actorUid,
+                        actorName,
+                        actorPhotoURL: actorPhoto,
+                        targetId: groupId,
+                        createdAt: serverTimestamp(),
+                    });
+                } catch (notifErr) {
+                    console.warn('[removeMember notification failed]:', notifErr);
+                }
+            }
         } catch (error) {
             console.error('[groupService.removeMember]:', error);
             throw new Error(formatGroupError(error));
@@ -358,13 +443,13 @@ export const groupService = {
             throw new Error('Group Owner cannot leave without transferring ownership first.');
         }
 
-        await groupService.removeMember(groupId, currentUid);
+        await groupService.removeMember(groupId, currentUid, currentUid);
     },
 
     /**
      * Promotes member to Admin.
      */
-    promoteAdmin: async (groupId, targetUid) => {
+    promoteAdmin: async (groupId, targetUid, actorUid = null) => {
         if (!groupId || !targetUid) return;
 
         try {
@@ -375,7 +460,7 @@ export const groupService = {
             const data = snap.data();
             const updatedAdmins = [...new Set([...(data.admins || []), targetUid])];
 
-            await groupService.updateMemberRoleInternal(groupId, targetUid, GROUP_ROLES.ADMIN, updatedAdmins);
+            await groupService.updateMemberRoleInternal(groupId, targetUid, GROUP_ROLES.ADMIN, updatedAdmins, actorUid, data.name);
         } catch (error) {
             console.error('[groupService.promoteAdmin]:', error);
             throw new Error(formatGroupError(error));
@@ -385,7 +470,7 @@ export const groupService = {
     /**
      * Demotes Admin to Member.
      */
-    demoteAdmin: async (groupId, targetUid) => {
+    demoteAdmin: async (groupId, targetUid, actorUid = null) => {
         if (!groupId || !targetUid) return;
 
         try {
@@ -400,7 +485,7 @@ export const groupService = {
 
             const updatedAdmins = (data.admins || []).filter((id) => id !== targetUid);
 
-            await groupService.updateMemberRoleInternal(groupId, targetUid, GROUP_ROLES.MEMBER, updatedAdmins);
+            await groupService.updateMemberRoleInternal(groupId, targetUid, GROUP_ROLES.MEMBER, updatedAdmins, actorUid, data.name);
         } catch (error) {
             console.error('[groupService.demoteAdmin]:', error);
             throw new Error(formatGroupError(error));
@@ -410,9 +495,8 @@ export const groupService = {
     /**
      * Internal helper for role updates.
      */
-    updateMemberRoleInternal: async (groupId, targetUid, newRole, updatedAdmins) => {
+    updateMemberRoleInternal: async (groupId, targetUid, newRole, updatedAdmins, actorUid = null, groupName = 'Group') => {
         const groupRef = doc(db, 'groups', groupId);
-        await groupRef;
         const batch = writeBatch(db);
 
         batch.update(groupRef, {
@@ -422,6 +506,40 @@ export const groupService = {
         });
 
         await batch.commit();
+
+        // Emit notification for role update
+        if (actorUid && actorUid !== targetUid) {
+            try {
+                let actorName = 'Admin';
+                let actorPhoto = '';
+                const actorDoc = await getDoc(doc(db, 'users', actorUid));
+                if (actorDoc.exists()) {
+                    actorName = actorDoc.data().fullName || 'Admin';
+                    actorPhoto = actorDoc.data().photoURL || '';
+                }
+
+                const roleTitle = newRole === GROUP_ROLES.ADMIN ? 'Promoted to Admin' : 'Role Updated';
+                const roleBody = newRole === GROUP_ROLES.ADMIN
+                    ? `You were promoted to Admin in group "${groupName}".`
+                    : `Your role was updated to Member in group "${groupName}".`;
+
+                const notifRef = doc(collection(db, 'users', targetUid, 'notifications'));
+                await setDoc(notifRef, {
+                    id: notifRef.id,
+                    type: 'group_role_update',
+                    title: roleTitle,
+                    body: roleBody,
+                    read: false,
+                    actorId: actorUid,
+                    actorName,
+                    actorPhotoURL: actorPhoto,
+                    targetId: groupId,
+                    createdAt: serverTimestamp(),
+                });
+            } catch (notifErr) {
+                console.warn('[updateMemberRoleInternal notification failed]:', notifErr);
+            }
+        }
     },
 
     /**
@@ -456,6 +574,33 @@ export const groupService = {
             });
 
             await batch.commit();
+
+            // Emit notification for ownership transfer
+            try {
+                let currentOwnerName = 'Owner';
+                let currentOwnerPhoto = '';
+                const ownerDoc = await getDoc(doc(db, 'users', currentOwnerUid));
+                if (ownerDoc.exists()) {
+                    currentOwnerName = ownerDoc.data().fullName || 'Owner';
+                    currentOwnerPhoto = ownerDoc.data().photoURL || '';
+                }
+
+                const notifRef = doc(collection(db, 'users', newOwnerUid, 'notifications'));
+                await setDoc(notifRef, {
+                    id: notifRef.id,
+                    type: 'group_ownership_transfer',
+                    title: 'Group Ownership Transferred',
+                    body: `${currentOwnerName} transferred ownership of group "${data.name}" to you.`,
+                    read: false,
+                    actorId: currentOwnerUid,
+                    actorName: currentOwnerName,
+                    actorPhotoURL: currentOwnerPhoto,
+                    targetId: groupId,
+                    createdAt: serverTimestamp(),
+                });
+            } catch (notifErr) {
+                console.warn('[transferOwnership notification failed]:', notifErr);
+            }
         } catch (error) {
             console.error('[groupService.transferOwnership]:', error);
             throw new Error(formatGroupError(error));

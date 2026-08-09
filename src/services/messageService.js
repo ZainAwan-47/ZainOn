@@ -12,6 +12,7 @@ import {
     onSnapshot,
     arrayUnion,
     updateDoc,
+    setDoc,
 } from 'firebase/firestore';
 
 // Firebase
@@ -92,6 +93,8 @@ export const messageService = {
                 hiddenFor: [],
             };
 
+            const recipientsToNotify = [];
+
             if (recipientId) {
                 convUpdateData[`unreadCounts.${recipientId}`] = increment(1);
 
@@ -100,6 +103,7 @@ export const messageService = {
                 } else {
                     convUpdateData.nonFriendMessageCounts = {};
                 }
+                recipientsToNotify.push(recipientId);
             } else {
                 const convSnap = await getDoc(convRef);
                 if (convSnap.exists()) {
@@ -107,6 +111,7 @@ export const messageService = {
                     Object.keys(participants).forEach((uid) => {
                         if (uid !== senderId) {
                             convUpdateData[`unreadCounts.${uid}`] = increment(1);
+                            recipientsToNotify.push(uid);
                         }
                     });
                 }
@@ -114,6 +119,40 @@ export const messageService = {
 
             batch.update(convRef, convUpdateData);
             await batch.commit();
+
+            // Emit notifications for inactive direct/group messages
+            try {
+                const senderDoc = await getDoc(doc(db, 'users', senderId));
+                const senderData = senderDoc.exists() ? senderDoc.data() : {};
+                const senderName = senderData.fullName || 'User';
+                const senderPhoto = senderData.photoURL || '';
+
+                for (const recId of recipientsToNotify) {
+                    if (recId === senderId) continue;
+
+                    const isDirect = Boolean(recipientId);
+                    const notifType = isDirect ? 'direct_message' : 'group_message';
+                    const notifTitle = isDirect ? `New message from ${senderName}` : `New group message`;
+                    const notifBody = trimmedText.length > 50 ? `${trimmedText.substring(0, 50)}...` : trimmedText;
+
+                    const notifRef = doc(collection(db, 'users', recId, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: notifType,
+                        title: notifTitle,
+                        body: notifBody,
+                        read: false,
+                        actorId: senderId,
+                        actorName: senderName,
+                        actorPhotoURL: senderPhoto,
+                        targetId: conversationId,
+                        messageId: messageId,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+            } catch (notifErr) {
+                console.warn('[messageService notification emission failed]:', notifErr);
+            }
 
             return messageId;
         } catch (error) {

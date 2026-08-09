@@ -38,6 +38,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const otherParticipant = conversation?.otherParticipant || {};
 
     const chatContainerRef = useRef(null);
+    const messagesEndRef = useRef(null); // Bottom scroll reference anchor
     const prevMessagesLengthRef = useRef(0);
     const isNearBottomRef = useRef(true);
     const ackedDeliveredIdsRef = useRef(new Set());
@@ -144,19 +145,21 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         scrollToMessageId(matchingMessageIds[prevIdx]);
     };
 
-    // Clean, precise container scrolling without overscroll distortion
+    // Reliable scroll to bottom using scrollIntoView on messagesEndRef
     const scrollToBottom = useCallback((instant = false) => {
-        if (!chatContainerRef.current) return;
-        const container = chatContainerRef.current;
-        container.scrollTo({
-            top: container.scrollHeight,
-            behavior: instant ? 'auto' : 'smooth',
-        });
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' });
+        } else if (chatContainerRef.current) {
+            const container = chatContainerRef.current;
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: instant ? 'auto' : 'smooth',
+            });
+        }
         isNearBottomRef.current = true;
         setShowScrollBadge(false);
     }, []);
 
-    // Re-align scroll precisely when viewport/layout size changes (e.g. desktop <-> mobile toggle)
     useEffect(() => {
         const handleResize = () => {
             if (isNearBottomRef.current) {
@@ -663,6 +666,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                 </div>
                             </div>
                         )}
+                        {/* Scroll anchor reference point */}
+                        <div ref={messagesEndRef} />
                     </div>
                 )}
             </div>

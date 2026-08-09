@@ -77,6 +77,27 @@ export const friendService = {
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
+
+            // Emit notification for incoming friend request
+            try {
+                const senderDoc = await getDoc(doc(db, 'users', senderUid));
+                const senderData = senderDoc.exists() ? senderDoc.data() : {};
+                const notifRef = doc(collection(db, 'users', receiverUid, 'notifications'));
+                await setDoc(notifRef, {
+                    id: notifRef.id,
+                    type: 'friend_request',
+                    title: 'New Friend Request',
+                    body: `${senderData.fullName || 'Someone'} sent you a friend request.`,
+                    read: false,
+                    actorId: senderUid,
+                    actorName: senderData.fullName || 'User',
+                    actorPhotoURL: senderData.photoURL || '',
+                    targetId: senderUid,
+                    createdAt: serverTimestamp(),
+                });
+            } catch (notifErr) {
+                console.warn('[sendFriendRequest notification failed]:', notifErr);
+            }
         } catch (error) {
             console.error('[friendService.sendFriendRequest]:', error);
             throw error;
@@ -116,6 +137,27 @@ export const friendService = {
             });
 
             await batch.commit();
+
+            // Emit notification for friend request accepted
+            try {
+                const receiverUserDoc = await getDoc(doc(db, 'users', receiverUid));
+                const receiverUserData = receiverUserDoc.exists() ? receiverUserDoc.data() : {};
+                const notifRef = doc(collection(db, 'users', senderUid, 'notifications'));
+                await setDoc(notifRef, {
+                    id: notifRef.id,
+                    type: 'friend_accepted',
+                    title: 'Friend Request Accepted',
+                    body: `${receiverUserData.fullName || 'Someone'} accepted your friend request.`,
+                    read: false,
+                    actorId: receiverUid,
+                    actorName: receiverUserData.fullName || 'User',
+                    actorPhotoURL: receiverUserData.photoURL || '',
+                    targetId: receiverUid,
+                    createdAt: serverTimestamp(),
+                });
+            } catch (notifErr) {
+                console.warn('[acceptFriendRequest notification failed]:', notifErr);
+            }
         } catch (error) {
             console.warn('[acceptFriendRequest batch failed, executing sequential fallback]:', error);
             try {
@@ -133,6 +175,27 @@ export const friendService = {
                     friendUid: receiverUid,
                     createdAt: serverTimestamp(),
                 });
+
+                // Emit notification for friend request accepted (fallback path)
+                try {
+                    const receiverUserDoc = await getDoc(doc(db, 'users', receiverUid));
+                    const receiverUserData = receiverUserDoc.exists() ? receiverUserDoc.data() : {};
+                    const notifRef = doc(collection(db, 'users', senderUid, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: 'friend_accepted',
+                        title: 'Friend Request Accepted',
+                        body: `${receiverUserData.fullName || 'Someone'} accepted your friend request.`,
+                        read: false,
+                        actorId: receiverUid,
+                        actorName: receiverUserData.fullName || 'User',
+                        actorPhotoURL: receiverUserData.photoURL || '',
+                        targetId: receiverUid,
+                        createdAt: serverTimestamp(),
+                    });
+                } catch (notifErr) {
+                    console.warn('[acceptFriendRequest fallback notification failed]:', notifErr);
+                }
             } catch (fallbackErr) {
                 console.error('[friendService.acceptFriendRequest fallback]:', fallbackErr);
                 throw new Error('Failed to accept friend request. Please check permissions.');
