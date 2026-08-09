@@ -33,7 +33,8 @@ export const messageService = {
         text,
         recipientId,
         replyTo = null,
-        isFriend = true
+        isFriend = true,
+        clientMessageId = null // NEW: 1:1 Optimistic Correlation ID
     ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
@@ -42,7 +43,9 @@ export const messageService = {
 
         try {
             const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-            const newMessageRef = doc(messagesRef);
+
+            // Use exact client ID if provided, otherwise generate normally
+            const newMessageRef = clientMessageId ? doc(messagesRef, clientMessageId) : doc(messagesRef);
             const messageId = newMessageRef.id;
 
             const batch = writeBatch(db);

@@ -5,11 +5,12 @@ import React, {
     useLayoutEffect,
     useState,
     useCallback,
+    useMemo,
     memo,
 } from 'react';
 
 // Third Party
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
@@ -38,14 +39,19 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const otherParticipant = conversation?.otherParticipant || {};
 
     const chatContainerRef = useRef(null);
-    const messagesEndRef = useRef(null); // Bottom scroll reference anchor
+    const messagesEndRef = useRef(null);
     const prevMessagesLengthRef = useRef(0);
-    const isNearBottomRef = useRef(true);
+    const scrollAnimationRef = useRef(null);
     const ackedDeliveredIdsRef = useRef(new Set());
+    const prevTypingState = useRef(false);
 
     const [replyingTo, setReplyingTo] = useState(null);
     const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
-    const [showScrollBadge, setShowScrollBadge] = useState(false);
+
+    // Separated scroll states
+    const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
+    const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+
     const [isFriend, setIsFriend] = useState(true);
 
     const [showInlineSearch, setShowInlineSearch] = useState(false);
@@ -73,11 +79,25 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isGroup ? undefined : otherParticipant.uid
     );
 
-    const [displayMessages, setDisplayMessages] = useState([]);
+    // Optimistic UI State
+    const [optimisticMessages, setOptimisticMessages] = useState([]);
 
+    // Safely combine real and optimistic messages
+    const allMessages = useMemo(() => {
+        if (optimisticMessages.length === 0) return messages;
+        const realIds = new Set(messages.map(m => m.id));
+        const pendingOptimistic = optimisticMessages.filter(m => !realIds.has(m.id));
+        return [...messages, ...pendingOptimistic];
+    }, [messages, optimisticMessages]);
+
+    // Clean up optimistic messages when Firestore responds
     useEffect(() => {
-        setDisplayMessages(messages);
-    }, [messages]);
+        if (optimisticMessages.length === 0) return;
+        const realIds = new Set(messages.map(m => m.id));
+        if (optimisticMessages.some(m => realIds.has(m.id))) {
+            setOptimisticMessages(prev => prev.filter(m => !realIds.has(m.id)));
+        }
+    }, [messages, optimisticMessages]);
 
     useEffect(() => {
         let timer;
@@ -108,7 +128,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             return;
         }
         const term = searchQuery.toLowerCase();
-        const matched = displayMessages
+        const matched = allMessages
             .filter((msg) => msg.text && msg.text.toLowerCase().includes(term) && !msg.isDeleted)
             .map((m) => m.id)
             .reverse();
@@ -118,7 +138,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         if (matched.length > 0) {
             scrollToMessageId(matched[0]);
         }
-    }, [searchQuery, displayMessages]);
+    }, [searchQuery, allMessages]);
 
     const scrollToMessageId = (msgId) => {
         const el = document.getElementById(`msg-${msgId}`);
@@ -145,51 +165,40 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         scrollToMessageId(matchingMessageIds[prevIdx]);
     };
 
-    // Reliable scroll to bottom using scrollIntoView on messagesEndRef
-    const scrollToBottom = useCallback((instant = false) => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'end' });
-        } else if (chatContainerRef.current) {
-            const container = chatContainerRef.current;
-            container.scrollTo({
-                top: container.scrollHeight,
-                behavior: instant ? 'auto' : 'smooth',
-            });
-        }
-        isNearBottomRef.current = true;
-        setShowScrollBadge(false);
-    }, []);
+    // =========================================================================
+    // UNIFIED SCROLL CONTROLLER
+    // =========================================================================
 
-    useEffect(() => {
-        const handleResize = () => {
-            if (isNearBottomRef.current) {
-                scrollToBottom(true);
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [scrollToBottom]);
+    // Mathematical source of truth for the scroll state
+    const getScrollMetrics = useCallback(() => {
+        if (!chatContainerRef.current) return null;
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const distanceFromBottom = Math.ceil(scrollHeight - scrollTop - clientHeight);
+
+        const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
+        const threshold = autoScrollEnabled ? 400 : 200;
+
+        return { distanceFromBottom, threshold, isNearBottom: distanceFromBottom <= threshold };
+    }, [user?.chatPrefs?.autoScroll]);
 
     const processAcknowledgements = useCallback(() => {
-        if (!conversation?.id || !user?.uid || displayMessages.length === 0) return;
+        if (!conversation?.id || !user?.uid || allMessages.length === 0) return;
 
         const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
 
-        const unackedDelivered = displayMessages.filter(
-            (m) =>
-                m.senderId !== user.uid &&
-                m.deliveryStatus === 'sent' &&
-                !ackedDeliveredIdsRef.current.has(m.id)
+        const unackedDelivered = allMessages.filter(
+            (m) => m.senderId !== user.uid && m.deliveryStatus === 'sent' && !ackedDeliveredIdsRef.current.has(m.id)
         );
         if (unackedDelivered.length > 0) {
             unackedDelivered.forEach((m) => ackedDeliveredIdsRef.current.add(m.id));
             messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
         }
 
-        const unconsumed = displayMessages.filter(
-            (m) =>
-                m.senderId !== user.uid &&
-                (!m.consumedBy || !m.consumedBy.includes(user.uid))
+        const metrics = getScrollMetrics();
+        if (!metrics || !metrics.isNearBottom) return;
+
+        const unconsumed = allMessages.filter(
+            (m) => m.senderId !== user.uid && (!m.consumedBy || !m.consumedBy.includes(user.uid))
         );
 
         if (unconsumed.length > 0) {
@@ -199,68 +208,193 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 messageService.markAsConsumedOnly(conversation.id, user.uid, unconsumed);
             }
         }
-    }, [conversation?.id, user?.uid, displayMessages, isGroup, user?.privacy?.readReceipts]);
+    }, [conversation?.id, user?.uid, allMessages, isGroup, user?.privacy?.readReceipts, getScrollMetrics]);
 
+    // Central programmatic scroll engine
+    const scrollToBottom = useCallback((instant = false) => {
+        const container = chatContainerRef.current;
+        if (!container) return;
+
+        if (scrollAnimationRef.current) {
+            cancelAnimationFrame(scrollAnimationRef.current);
+            scrollAnimationRef.current = null;
+        }
+
+        const targetTop = container.scrollHeight - container.clientHeight;
+
+        if (instant) {
+            container.scrollTop = targetTop;
+            setIsAwayFromBottom(false);
+            setHasNewMessagesBelow(false);
+            processAcknowledgements();
+            return;
+        }
+
+        const startTop = container.scrollTop;
+        const distance = targetTop - startTop;
+
+        if (Math.abs(distance) < 2) {
+            setIsAwayFromBottom(false);
+            setHasNewMessagesBelow(false);
+            processAcknowledgements();
+            return;
+        }
+
+        let startTime = null;
+        const duration = 250;
+        const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+        const animateScroll = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = timestamp - startTime;
+            const percent = Math.min(progress / duration, 1);
+
+            container.scrollTop = startTop + distance * easeOutCubic(percent);
+
+            if (progress < duration) {
+                scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+            } else {
+                container.scrollTop = targetTop;
+                setIsAwayFromBottom(false);
+                setHasNewMessagesBelow(false);
+                scrollAnimationRef.current = null;
+                processAcknowledgements();
+            }
+        };
+
+        scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+    }, [processAcknowledgements]);
+
+    // Triggers when user manually scrolls
     const handleScroll = useCallback(() => {
-        if (!chatContainerRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const metrics = getScrollMetrics();
+        if (!metrics) return;
 
-        const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
-        const threshold = autoScrollEnabled ? 250 : 150;
+        // Automatically toggle navigator based purely on scroll position
+        setIsAwayFromBottom(!metrics.isNearBottom);
 
-        const isNearBottom = scrollHeight - scrollTop - clientHeight <= threshold;
-
-        isNearBottomRef.current = isNearBottom;
-
-        if (isNearBottom) {
-            if (showScrollBadge) setShowScrollBadge(false);
+        if (metrics.isNearBottom) {
+            setHasNewMessagesBelow(false);
             processAcknowledgements();
         }
-    }, [showScrollBadge, processAcknowledgements, user?.chatPrefs?.autoScroll]);
+    }, [getScrollMetrics, processAcknowledgements]);
+
+    // Detect actual human interruption (cancels animation & calculates intention)
+    useEffect(() => {
+        const container = chatContainerRef.current;
+        if (!container) return;
+
+        const handleUserInteraction = () => {
+            if (scrollAnimationRef.current) {
+                cancelAnimationFrame(scrollAnimationRef.current);
+                scrollAnimationRef.current = null;
+                handleScroll(); // Immediately calculate true user intention
+            }
+        };
+
+        container.addEventListener('wheel', handleUserInteraction, { passive: true });
+        container.addEventListener('touchstart', handleUserInteraction, { passive: true });
+        container.addEventListener('touchmove', handleUserInteraction, { passive: true });
+
+        return () => {
+            container.removeEventListener('wheel', handleUserInteraction);
+            container.removeEventListener('touchstart', handleUserInteraction);
+            container.removeEventListener('touchmove', handleUserInteraction);
+        };
+    }, [handleScroll]);
 
     useEffect(() => {
-        if (isNearBottomRef.current) {
+        const handleResize = () => {
+            const metrics = getScrollMetrics();
+            if (metrics?.isNearBottom) {
+                scrollToBottom(true);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [scrollToBottom, getScrollMetrics]);
+
+    useEffect(() => {
+        const metrics = getScrollMetrics();
+        if (metrics?.isNearBottom) {
             processAcknowledgements();
         }
-    }, [displayMessages, processAcknowledgements]);
+    }, [allMessages, processAcknowledgements, getScrollMetrics]);
 
+    // Main insertion logic
     useLayoutEffect(() => {
-        if (!loading && displayMessages.length > 0 && prevMessagesLengthRef.current === 0) {
-            scrollToBottom(true);
-            isNearBottomRef.current = true;
-        }
-    }, [loading, displayMessages.length, scrollToBottom]);
-
-    useLayoutEffect(() => {
-        if (displayMessages.length > prevMessagesLengthRef.current && prevMessagesLengthRef.current !== 0) {
-            const lastMsg = displayMessages[displayMessages.length - 1];
+        if (!loading && allMessages.length > prevMessagesLengthRef.current) {
+            const isInitialLoad = prevMessagesLengthRef.current === 0;
+            const lastMsg = allMessages[allMessages.length - 1];
             const isOwnMsg = lastMsg?.senderId === user?.uid;
 
-            if (isOwnMsg || isNearBottomRef.current) {
-                requestAnimationFrame(() => scrollToBottom(false));
+            if (isInitialLoad) {
+                scrollToBottom(true);
+            } else if (isOwnMsg) {
+                // Senders always get forced instant snap
+                scrollToBottom(true);
             } else {
-                setShowScrollBadge(true);
+                const metrics = getScrollMetrics();
+                if (metrics && metrics.isNearBottom) {
+                    scrollToBottom(false);
+                } else {
+                    setHasNewMessagesBelow(true);
+                }
             }
+            prevMessagesLengthRef.current = allMessages.length;
         }
-        prevMessagesLengthRef.current = displayMessages.length;
-    }, [displayMessages, user?.uid, scrollToBottom]);
+    }, [allMessages.length, loading, user?.uid, scrollToBottom, getScrollMetrics]);
 
-    // Extract typing status map from conversation
     const typingMap = conversation?.typing || {};
     const otherUserUid = isGroup ? null : otherParticipant?.uid;
     const isOtherUserTyping = otherUserUid
         ? Boolean(typingMap[otherUserUid])
         : Object.entries(typingMap).some(([uid, val]) => uid !== user?.uid && val);
 
-    // Smoothly adjust scroll position when typing indicator appears or disappears
-    useEffect(() => {
-        if (isNearBottomRef.current) {
-            requestAnimationFrame(() => scrollToBottom(false));
+    // Layout shift caused by typing indicator
+    useLayoutEffect(() => {
+        if (isOtherUserTyping !== prevTypingState.current) {
+            const metrics = getScrollMetrics();
+            if (metrics && metrics.isNearBottom) {
+                scrollToBottom(false);
+            }
+            prevTypingState.current = isOtherUserTyping;
         }
-    }, [isOtherUserTyping, scrollToBottom]);
+    }, [isOtherUserTyping, getScrollMetrics, scrollToBottom]);
+
+    const handleBadgeClick = useCallback(() => {
+        scrollToBottom(false);
+    }, [scrollToBottom]);
 
     const handleSendWithReply = useCallback(
         async (text, replyToMsg) => {
+            if (!text.trim()) return;
+
+            // Generate strict 1:1 local correlation ID
+            const clientMessageId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            const optimisticMsg = {
+                id: clientMessageId,
+                senderId: user.uid,
+                text: text.trim(),
+                createdAt: new Date(),
+                type: 'text',
+                deliveryStatus: 'sending',
+                isOptimistic: true,
+                replyTo: replyToMsg ? {
+                    id: replyToMsg.id,
+                    text: replyToMsg.text,
+                    senderId: replyToMsg.senderId,
+                    senderName: isGroup ? conversation.participants?.[replyToMsg.senderId]?.fullName || 'Member' : null,
+                } : null
+            };
+
+            setOptimisticMessages(prev => [...prev, optimisticMsg]);
+            setReplyingTo(null);
+
+            // Preemptively execute snap to guarantee visual arrival
+            setTimeout(() => scrollToBottom(true), 0);
+
             try {
                 await messageService.sendMessage(
                     conversation.id,
@@ -268,15 +402,16 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     text,
                     isGroup ? null : otherParticipant.uid,
                     replyToMsg,
-                    isFriend
+                    isFriend,
+                    clientMessageId
                 );
-                setReplyingTo(null);
-                scrollToBottom(false);
             } catch (error) {
                 console.error("Failed to send message:", error);
+                // Remove exclusively if failed
+                setOptimisticMessages(prev => prev.filter(m => m.id !== clientMessageId));
             }
         },
-        [conversation?.id, user?.uid, isGroup, otherParticipant.uid, isFriend, scrollToBottom]
+        [conversation?.id, user, isGroup, otherParticipant, isFriend, scrollToBottom]
     );
 
     const handleCancelReply = useCallback(() => {
@@ -353,9 +488,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     const handleEditSubmit = async (messageId, newText) => {
         setEditingMessageId(null);
-        setDisplayMessages((prev) =>
-            prev.map((m) => (m.id === messageId ? { ...m, text: newText, isEdited: true } : m))
-        );
         try {
             await messageService.editMessage(conversation.id, messageId, user.uid, newText);
         } catch (error) {
@@ -399,7 +531,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     const handleOpenDeleteModalForBulk = () => {
         if (selectedMessageIds.length === 0) return;
-        const selectedMsgs = displayMessages.filter(m => selectedMessageIds.includes(m.id));
+        const selectedMsgs = allMessages.filter(m => selectedMessageIds.includes(m.id));
         const allOwn = selectedMsgs.every(m => m.senderId === user.uid);
         const canBulkEveryone = allOwn && selectedMsgs.every(m => canDeleteMessageForEveryone(m));
 
@@ -420,14 +552,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             : [currentModalState.message?.id].filter(Boolean);
 
         if (idsToProcess.length === 0) return;
-
-        setDisplayMessages((prev) => {
-            if (deleteForEveryone) {
-                return prev.map(m => idsToProcess.includes(m.id) ? { ...m, isDeleted: true, text: 'This message was deleted', reactions: {} } : m);
-            } else {
-                return prev.filter(m => !idsToProcess.includes(m.id));
-            }
-        });
 
         if (currentModalState.isBulk) {
             setSelectedMessageIds([]);
@@ -567,7 +691,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-4 scrollbar-thin relative flex flex-col"
+                className="flex-1 overflow-y-auto px-4 pt-4 pb-2 scrollbar-thin relative flex flex-col"
             >
                 {loading ? (
                     showLoading ? (
@@ -578,7 +702,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     ) : (
                         <div className="flex-1" />
                     )
-                ) : displayMessages.length === 0 ? (
+                ) : allMessages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-2 select-none">
                         {isGroup ? (
                             <>
@@ -612,8 +736,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                     </div>
                 ) : (
                     <div className="flex flex-col space-y-1 mt-auto">
-                        {displayMessages.map((msg, index) => {
-                            const prevMsg = displayMessages[index - 1];
+                        {allMessages.map((msg, index) => {
+                            const prevMsg = allMessages[index - 1];
                             const showSeparator = shouldShowDateSeparator(msg, prevMsg);
                             const dateLabel = getDateSeparatorLabel(msg.createdAt);
 
@@ -626,7 +750,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                             </span>
                                         </div>
                                     )}
-                                    <div id={`msg-${msg.id}`}>
+                                    <div id={`msg-${msg.id}`} className={`flex-shrink-0 ${msg.isOptimistic ? 'opacity-80' : 'opacity-100'} transition-opacity duration-300`}>
                                         <MessageBubble
                                             message={msg}
                                             isOwn={msg.senderId === user?.uid}
@@ -656,33 +780,53 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                 </React.Fragment>
                             );
                         })}
-                        {/* 3-dots wave typing indicator */}
-                        {isOtherUserTyping && (
-                            <div className="flex items-center space-x-2 mb-3 mt-1 select-none animate-in fade-in duration-200">
-                                <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5">
-                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce"></div>
-                                </div>
-                            </div>
-                        )}
-                        {/* Scroll anchor reference point */}
-                        <div ref={messagesEndRef} />
+
+                        <AnimatePresence>
+                            {isOtherUserTyping && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex items-center space-x-2 mb-2 mt-1 select-none flex-shrink-0"
+                                    style={{ overflow: 'hidden' }}
+                                >
+                                    <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5 ml-2">
+                                        <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                        <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                        <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce"></div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <div ref={messagesEndRef} className="h-0 flex-shrink-0" />
                     </div>
                 )}
             </div>
 
-            {showScrollBadge && (
-                <button
-                    onClick={() => scrollToBottom(false)}
-                    className="absolute bottom-[88px] right-6 w-10 h-10 bg-[var(--color-primary)] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[var(--color-primary-hover)] transition-all z-20 animate-bounce cursor-pointer"
-                    title="New messages below"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                    </svg>
-                </button>
-            )}
+            <AnimatePresence>
+                {isAwayFromBottom && (
+                    <motion.button
+                        initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                        onClick={handleBadgeClick}
+                        className="absolute bottom-[88px] right-6 w-10 h-10 bg-[var(--color-primary)] text-white rounded-full shadow-lg flex items-center justify-center hover:bg-[var(--color-primary-hover)] transition-all z-20 cursor-pointer shadow-xl"
+                        title="New messages below"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                        {hasNewMessagesBelow && (
+                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 border-2 border-[var(--bg-main)]"></span>
+                            </span>
+                        )}
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
             {isLimitReached ? (
                 <div className="p-4 bg-[var(--bg-surface)] border-t border-[var(--border-color)] flex flex-col items-center justify-center space-y-1.5 text-center select-none">
