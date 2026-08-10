@@ -249,12 +249,16 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             const progress = timestamp - startTime;
             const percent = Math.min(progress / duration, 1);
 
-            container.scrollTop = startTop + distance * easeOutCubic(percent);
+            // FIX: Dynamically recalculate the target every frame to track expanding DOM (prevents clipping)
+            const currentTargetTop = container.scrollHeight - container.clientHeight;
+            const currentDistance = currentTargetTop - startTop;
+
+            container.scrollTop = startTop + currentDistance * easeOutCubic(percent);
 
             if (progress < duration) {
                 scrollAnimationRef.current = requestAnimationFrame(animateScroll);
             } else {
-                container.scrollTop = targetTop;
+                container.scrollTop = currentTargetTop;
                 setIsAwayFromBottom(false);
                 setHasNewMessagesBelow(false);
                 scrollAnimationRef.current = null;
@@ -331,8 +335,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             if (isInitialLoad) {
                 scrollToBottom(true);
             } else if (isOwnMsg) {
-                // Senders always get forced instant snap
-                scrollToBottom(true);
+                // FIX: Senders get smooth scroll for fluid behavior, no more jumping
+                scrollToBottom(false);
             } else {
                 const metrics = getScrollMetrics();
                 if (metrics && metrics.isNearBottom) {
@@ -392,8 +396,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             setOptimisticMessages(prev => [...prev, optimisticMsg]);
             setReplyingTo(null);
 
-            // Preemptively execute snap to guarantee visual arrival
-            setTimeout(() => scrollToBottom(true), 0);
+            // FIX: Smoothly scroll to outgoing optimistic message instead of snapping instantly
+            requestAnimationFrame(() => scrollToBottom(false));
 
             try {
                 await messageService.sendMessage(
@@ -791,7 +795,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                     className="flex items-center space-x-2 mb-2 mt-1 select-none flex-shrink-0"
                                     style={{ overflow: 'hidden' }}
                                 >
-                                    <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5 ml-2">
+                                    <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5 ml-2 w-max">
                                         <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                                         <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
                                         <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce"></div>

@@ -171,11 +171,12 @@ export const MessageBubble = memo(({
     return (
         <motion.div
             ref={containerRef}
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
+            // EXACT LOGIC FIX: 'layout' prop is REMOVED to prevent scroll height race condition/clipping.
+            // A premium Spring physics creates the flawless glide.
+            initial={{ opacity: 0, y: 30, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
+            transition={{ type: "spring", stiffness: 280, damping: 25 }}
             className={`flex items-center space-x-2 my-1 group select-none ${isOwn ? 'flex-row-reverse space-x-reverse justify-start' : 'justify-start'} ${spotlightClasses}`}
         >
             {isMultiSelectMode && !message.isDeleted && (
@@ -237,10 +238,10 @@ export const MessageBubble = memo(({
                 <div
                     onClick={handleBubbleClick}
                     className={`max-w-[75%] sm:max-w-[65%] rounded-2xl ${fontClasses[chatFontSize]} break-words shadow-sm transition-all cursor-pointer relative ${message.isDeleted
-                            ? 'italic text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] border border-[var(--border-color)]'
-                            : isOwn
-                                ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-tr-xs'
-                                : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-xs'
+                        ? 'italic text-[var(--text-secondary)] bg-[var(--bg-surface-hover)] border border-[var(--border-color)]'
+                        : isOwn
+                            ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-tr-xs'
+                            : 'bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-tl-xs'
                         }`}
                 >
                     {!message.isDeleted && message.replyTo && (
@@ -252,8 +253,8 @@ export const MessageBubble = memo(({
                                 }
                             }}
                             className={`mb-2 p-2 rounded-xl text-[11px] border-l-2 cursor-pointer hover:opacity-100 transition-opacity ${isOwn
-                                    ? 'bg-black/20 border-white/40 text-white/90'
-                                    : 'bg-[var(--bg-main)] border-[var(--color-primary)] text-[var(--text-secondary)]'
+                                ? 'bg-black/20 border-white/40 text-white/90'
+                                : 'bg-[var(--bg-main)] border-[var(--color-primary)] text-[var(--text-secondary)]'
                                 }`}
                             title="Jump to original message"
                         >
@@ -364,8 +365,8 @@ export const MessageBubble = memo(({
                                         if (onViewReactions) onViewReactions(message);
                                     }}
                                     className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 transition-all active:scale-95 cursor-pointer ${hasReacted
-                                            ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
-                                            : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
+                                        ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
+                                        : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
                                         }`}
                                 >
                                     <span>{emoji}</span>

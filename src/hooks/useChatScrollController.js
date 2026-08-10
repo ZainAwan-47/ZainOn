@@ -24,7 +24,6 @@ export const useChatScrollController = ({
     // Deterministic new-message state (drives both ↓ and the sidebar badge)
     const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
 
-    // EXACT FIX: Mutually exclusive Seen vs Delivered logic prevents Firestore batch racing
     const processAcknowledgements = useCallback(() => {
         if (!conversationId || !user?.uid || messages.length === 0) return;
 
@@ -70,17 +69,12 @@ export const useChatScrollController = ({
         if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
 
-        // Safety unlock if animation gets stuck
         scrollTimeoutRef.current = setTimeout(() => {
             isProgrammaticScrollRef.current = false;
         }, 500);
 
-        container.scrollTo({
-            top: container.scrollHeight,
-            behavior: instant ? 'auto' : 'smooth'
-        });
-
         if (instant) {
+            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
             setHasNewMessagesBelow(false);
             distanceFromBottomRef.current = 0;
             processAcknowledgements();
@@ -88,20 +82,37 @@ export const useChatScrollController = ({
             return;
         }
 
-        // Wait for smooth scroll to actually finish before clearing states
-        const checkScroll = () => {
-            if (!container) return;
-            const dist = Math.ceil(container.scrollHeight - container.scrollTop - container.clientHeight);
-            if (dist <= 10) {
+        const startTop = container.scrollTop;
+        let startTime = null;
+        const duration = 300; // Smooth 300ms drag up effect
+
+        const animateScroll = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = timestamp - startTime;
+            const percent = Math.min(progress / duration, 1);
+
+            // Premium cubic ease-out for the list dragging up
+            const easeOutCubic = 1 - Math.pow(1 - percent, 3);
+
+            // Dynamically tracks the DOM height as it animates
+            const currentTargetTop = container.scrollHeight - container.clientHeight;
+            const currentDistance = currentTargetTop - startTop;
+
+            container.scrollTop = startTop + currentDistance * easeOutCubic;
+
+            if (progress < duration) {
+                scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+            } else {
+                container.scrollTop = currentTargetTop;
                 setHasNewMessagesBelow(false);
                 distanceFromBottomRef.current = 0;
                 processAcknowledgements();
                 isProgrammaticScrollRef.current = false;
-            } else {
-                scrollAnimationRef.current = requestAnimationFrame(checkScroll);
+                scrollAnimationRef.current = null;
             }
         };
-        scrollAnimationRef.current = requestAnimationFrame(checkScroll);
+
+        scrollAnimationRef.current = requestAnimationFrame(animateScroll);
     }, [processAcknowledgements]);
 
     const handleScroll = useCallback(() => {
@@ -113,7 +124,6 @@ export const useChatScrollController = ({
 
         if (isProgrammaticScrollRef.current) return;
 
-        // If user manually touches bottom, explicitly clear new-message state
         if (dist <= 10 && hasNewMessagesBelow) {
             setHasNewMessagesBelow(false);
             processAcknowledgements();
@@ -142,9 +152,6 @@ export const useChatScrollController = ({
         };
     }, [handleScroll]);
 
-    // =========================================================================
-    // STRICT MESSAGE THRESHOLD RULE (200px / 400px)
-    // =========================================================================
     useLayoutEffect(() => {
         if (!loading && messages.length > prevMessagesLengthRef.current) {
             const isInitialLoad = prevMessagesLengthRef.current === 0;
@@ -154,13 +161,13 @@ export const useChatScrollController = ({
             const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
             const messageThreshold = autoScrollEnabled ? 400 : 200;
 
-            // EXACT FIX: Evaluates the persistent ref which holds the PRE-MUTATION scroll distance
             const wasWithinThreshold = distanceFromBottomRef.current <= messageThreshold;
 
             requestAnimationFrame(() => {
-                if (isInitialLoad || isOwnMsg) {
+                if (isInitialLoad) {
                     scrollToBottom(true);
-                } else if (wasWithinThreshold) {
+                } else if (isOwnMsg || wasWithinThreshold) {
+                    // EXACT FIX: Both Sender and Receiver get the smooth drag up animation
                     scrollToBottom(false);
                 } else {
                     setHasNewMessagesBelow(true);
@@ -171,12 +178,8 @@ export const useChatScrollController = ({
         }
     }, [messages.length, loading, user?.uid, user?.chatPrefs?.autoScroll, scrollToBottom]);
 
-    // =========================================================================
-    // STRICT TYPING THRESHOLD RULE (50px ONLY)
-    // =========================================================================
     useLayoutEffect(() => {
         if (isOtherUserTyping !== prevTypingStateRef.current) {
-            // Typing ONLY auto-scrolls if the user is explicitly within 50px
             if (isOtherUserTyping && distanceFromBottomRef.current <= 50) {
                 requestAnimationFrame(() => scrollToBottom(false));
             }
@@ -188,7 +191,6 @@ export const useChatScrollController = ({
         scrollToBottom(false);
     }, [scrollToBottom]);
 
-    // Broadcast unresolved new-message state to sidebar
     useEffect(() => {
         const detail = { hasNewMessagesBelow };
         window.dispatchEvent(new CustomEvent('zainon_chat_reading_state', { detail }));
