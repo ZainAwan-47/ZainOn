@@ -1,11 +1,12 @@
 // React
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // Hooks & Services
 import { useAuth } from './useAuth';
 import { notificationService } from '../services/notificationService';
 
-export const useNotifications = () => {
+// EXACT FIX: Intercept notifications at the root based on active chat
+export const useNotifications = (activeConversationId = null) => {
     const { user } = useAuth();
     const currentUid = user?.uid;
 
@@ -13,7 +14,11 @@ export const useNotifications = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Realtime subscription lifecycle & authentication changes
+    const activeChatRef = useRef(activeConversationId);
+    useEffect(() => {
+        activeChatRef.current = activeConversationId;
+    }, [activeConversationId]);
+
     useEffect(() => {
         if (!currentUid) {
             setNotifications([]);
@@ -28,7 +33,18 @@ export const useNotifications = () => {
         const unsubscribe = notificationService.subscribeToNotifications(
             currentUid,
             (data) => {
-                setNotifications(data);
+                // If a notification arrives for the currently open chat, destroy it immediately.
+                // It will NEVER hit the UI, preventing the bell from incrementing or the toast from firing.
+                const filtered = data.filter((n) => {
+                    const isChatMsg = n.type === 'direct_message' || n.type === 'group_message';
+                    if (isChatMsg && n.targetId === activeChatRef.current) {
+                        notificationService.deleteNotification(currentUid, n.id);
+                        return false;
+                    }
+                    return true;
+                });
+
+                setNotifications(filtered);
                 setLoading(false);
             },
             30
@@ -41,12 +57,10 @@ export const useNotifications = () => {
         };
     }, [currentUid]);
 
-    // Unread count calculated efficiently from realtime state
     const unreadCount = useMemo(() => {
         return notifications.filter((n) => !n.read).length;
     }, [notifications]);
 
-    // Action wrappers with error handling
     const markAsRead = useCallback(async (notificationId) => {
         if (!currentUid || !notificationId) return;
         try {

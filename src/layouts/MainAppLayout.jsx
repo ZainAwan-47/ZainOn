@@ -52,11 +52,20 @@ export const MainAppLayout = () => {
     const mobileBellRef = useRef(null);
 
     const {
+        conversations = [],
+        activeConversationId,
+        setActiveConversationId,
+        loading: conversationsLoading,
+        startConversation,
+    } = useConversations() || {};
+
+    // EXACT FIX: Pass activeConversationId to useNotifications for intercepting
+    const {
         notifications,
         unreadCount,
         deleteNotification,
         deleteAllNotifications
-    } = useNotifications();
+    } = useNotifications(activeConversationId);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -92,29 +101,9 @@ export const MainAppLayout = () => {
         declineRequest,
     } = useFriends() || {};
 
-    const {
-        conversations = [],
-        activeConversationId,
-        setActiveConversationId,
-        loading: conversationsLoading,
-        startConversation,
-    } = useConversations() || {};
-
     const { groups = [], loading: groupsLoading } = useGroups() || {};
 
     useGlobalDeliveryAck(user?.uid, conversations);
-
-    useEffect(() => {
-        if (!activeConversationId || !notifications || notifications.length === 0) return;
-
-        const notificationsForActiveChat = notifications.filter(n =>
-            (n.type === 'direct_message' || n.type === 'group_message') && n.targetId === activeConversationId
-        );
-
-        notificationsForActiveChat.forEach((n) => {
-            deleteNotification(n.id);
-        });
-    }, [activeConversationId, notifications, deleteNotification]);
 
     const handleLogout = async () => {
         try {
@@ -236,8 +225,8 @@ export const MainAppLayout = () => {
                 />
             )}
 
-            {/* EXACT FIX: 'absolute md:relative' cleanly strips sidebar from mobile layout constraints */}
-            <aside className={`absolute md:relative inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+            {/* EXACT FIX (Bug 6): 'fixed md:relative' cleanly strips sidebar from mobile layout constraints ensuring ChatRoom spans 100vw */}
+            <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-[85%] max-w-[336px] md:w-[336px] md:min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
 
                 <div className="h-[72px] px-5 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 bg-[var(--bg-surface)] backdrop-blur-md relative z-[60] overflow-visible">
                     <div className="flex items-center space-x-3.5">

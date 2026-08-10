@@ -29,7 +29,28 @@ export const ConversationItem = memo(({
     const [isFriend, setIsFriend] = useState(true);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    // Live Snapshot Listener for Target User (Respects Privacy Settings instantly in sidebar)
+    const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+
+    useEffect(() => {
+        if (!isActive) {
+            setHasNewMessagesBelow(false);
+            return;
+        }
+
+        const handleReadingState = (e) => {
+            // EXACT FIX (Bug 4): Strictly enforce ID matching so Chat A doesn't clear Chat B's badge.
+            if (e.detail.conversationId === conversation.id) {
+                setHasNewMessagesBelow(e.detail.showBottomNavigator);
+            }
+        };
+
+        window.addEventListener('zainon_chat_reading_state', handleReadingState);
+        return () => window.removeEventListener('zainon_chat_reading_state', handleReadingState);
+    }, [isActive, conversation.id]);
+
+    // Unconditionally suppress badge if the chat is actively open AND we aren't scrolled up
+    const finalUnreadCount = isActive ? (hasNewMessagesBelow ? unreadCount : 0) : unreadCount;
+
     useEffect(() => {
         if (isGroup || !otherParticipantUid) return;
         const unsub = onSnapshot(doc(db, 'users', otherParticipantUid), (docSnap) => {
@@ -40,7 +61,6 @@ export const ConversationItem = memo(({
         return () => unsub();
     }, [isGroup, otherParticipantUid]);
 
-    // Check Friendship
     useEffect(() => {
         if (!user?.uid || !otherParticipantUid || isGroup) return () => { };
         const friendDocRef = doc(db, 'users', user.uid, 'friends', otherParticipantUid);
@@ -80,11 +100,9 @@ export const ConversationItem = memo(({
     const displayName = isGroup ? conversation.name : (liveOtherUser.fullName || 'Direct Message');
     const displayAvatar = isGroup ? conversation.avatar : liveOtherUser.photoURL;
 
-    // Check if the other user has onlineStatus turned off in real-time
     const onlineStatusEnabled = liveOtherUser.privacy?.onlineStatus !== false;
     const displayOnline = isGroup ? false : (onlineStatusEnabled ? liveOtherUser.isOnline : false);
 
-    // Typing indicator extraction
     const typingMap = conversation?.typing || {};
     const isOtherUserTyping = otherParticipantUid
         ? Boolean(typingMap[otherParticipantUid])
@@ -146,9 +164,9 @@ export const ConversationItem = memo(({
                         </p>
 
                         <div className="flex items-center space-x-1.5 shrink-0">
-                            {unreadCount > 0 && (
+                            {finalUnreadCount > 0 && (
                                 <span className="px-1.5 py-0.5 rounded-full bg-[var(--color-primary)] text-[10px] text-white font-extrabold shrink-0 shadow-sm animate-pulse">
-                                    {unreadCount}
+                                    {finalUnreadCount}
                                 </span>
                             )}
 

@@ -1,28 +1,12 @@
-// React
-import React, {
-    useRef,
-    useEffect,
-    useLayoutEffect,
-    useState,
-    useCallback,
-    useMemo,
-    memo,
-} from 'react';
-
-// Third Party
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-
-// Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
 import { messageService } from '../../services/messageService';
 import { friendService } from '../../services/friendService';
-import {
-    getDateSeparatorLabel,
-    shouldShowDateSeparator,
-} from '../../utils/dateFormatter';
+import { getDateSeparatorLabel, shouldShowDateSeparator } from '../../utils/dateFormatter';
+import { useChatScrollController } from '../../hooks/useChatScrollController';
 
-// Components
 import ChatHeader from './ChatHeader';
 import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
@@ -38,20 +22,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const isGroup = conversation?.type === 'group';
     const otherParticipant = conversation?.otherParticipant || {};
 
-    const chatContainerRef = useRef(null);
-    const messagesEndRef = useRef(null);
-    const prevMessagesLengthRef = useRef(0);
-    const scrollAnimationRef = useRef(null);
-    const ackedDeliveredIdsRef = useRef(new Set());
-    const prevTypingState = useRef(false);
-
     const [replyingTo, setReplyingTo] = useState(null);
     const [isGroupProfileOpen, setIsGroupProfileOpen] = useState(false);
-
-    // Separated scroll states
-    const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
-    const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
-
     const [isFriend, setIsFriend] = useState(true);
 
     const [showInlineSearch, setShowInlineSearch] = useState(false);
@@ -60,7 +32,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const [searchIndex, setSearchIndex] = useState(0);
 
     const [editingMessageId, setEditingMessageId] = useState(null);
-
     const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
     const [selectedMessageIds, setSelectedMessageIds] = useState([]);
     const [deleteModalState, setDeleteModalState] = useState({
@@ -70,19 +41,17 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isBulk: false,
     });
 
-    const [showLoading, setShowLoading] = useState(false);
     const [viewingSeenBy, setViewingSeenBy] = useState(null);
     const [viewingReactions, setViewingReactions] = useState(null);
+    const [showLoading, setShowLoading] = useState(false);
 
-    const { messages, loading } = useMessages(
+    const { messages, loading, sendMessage } = useMessages(
         conversation?.id,
         isGroup ? undefined : otherParticipant.uid
     );
 
-    // Optimistic UI State
     const [optimisticMessages, setOptimisticMessages] = useState([]);
 
-    // Safely combine real and optimistic messages
     const allMessages = useMemo(() => {
         if (optimisticMessages.length === 0) return messages;
         const realIds = new Set(messages.map(m => m.id));
@@ -90,8 +59,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         return [...messages, ...pendingOptimistic];
     }, [messages, optimisticMessages]);
 
-    // Clean up optimistic messages when Firestore responds
-    useEffect(() => {
+    React.useEffect(() => {
         if (optimisticMessages.length === 0) return;
         const realIds = new Set(messages.map(m => m.id));
         if (optimisticMessages.some(m => realIds.has(m.id))) {
@@ -99,7 +67,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         }
     }, [messages, optimisticMessages]);
 
-    useEffect(() => {
+    React.useEffect(() => {
         let timer;
         if (loading) {
             timer = setTimeout(() => setShowLoading(true), 150);
@@ -109,19 +77,17 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         return () => clearTimeout(timer);
     }, [loading]);
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (isGroup || !user?.uid || !otherParticipant?.uid) return;
         const unsub = friendService.subscribeToFriendshipStatus(
             user.uid,
             otherParticipant.uid,
-            (status) => {
-                setIsFriend(status === 'FRIENDS');
-            }
+            (status) => setIsFriend(status === 'FRIENDS')
         );
         return () => unsub();
     }, [user?.uid, otherParticipant?.uid, isGroup]);
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (!searchQuery.trim()) {
             setMatchingMessageIds([]);
             setSearchIndex(0);
@@ -135,9 +101,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
         setMatchingMessageIds(matched);
         setSearchIndex(0);
-        if (matched.length > 0) {
-            scrollToMessageId(matched[0]);
-        }
+        if (matched.length > 0) scrollToMessageId(matched[0]);
     }, [searchQuery, allMessages]);
 
     const scrollToMessageId = (msgId) => {
@@ -145,9 +109,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             el.classList.add('bg-[var(--color-primary)]/15', 'transition-colors', 'duration-700', 'rounded-2xl');
-            setTimeout(() => {
-                el.classList.remove('bg-[var(--color-primary)]/15');
-            }, 1500);
+            setTimeout(() => el.classList.remove('bg-[var(--color-primary)]/15'), 1500);
         }
     };
 
@@ -165,216 +127,32 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         scrollToMessageId(matchingMessageIds[prevIdx]);
     };
 
-    // =========================================================================
-    // UNIFIED SCROLL CONTROLLER
-    // =========================================================================
-
-    // Mathematical source of truth for the scroll state
-    const getScrollMetrics = useCallback(() => {
-        if (!chatContainerRef.current) return null;
-        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-        const distanceFromBottom = Math.ceil(scrollHeight - scrollTop - clientHeight);
-
-        const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
-        const threshold = autoScrollEnabled ? 400 : 200;
-
-        return { distanceFromBottom, threshold, isNearBottom: distanceFromBottom <= threshold };
-    }, [user?.chatPrefs?.autoScroll]);
-
-    const processAcknowledgements = useCallback(() => {
-        if (!conversation?.id || !user?.uid || allMessages.length === 0) return;
-
-        const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
-
-        const unackedDelivered = allMessages.filter(
-            (m) => m.senderId !== user.uid && m.deliveryStatus === 'sent' && !ackedDeliveredIdsRef.current.has(m.id)
-        );
-        if (unackedDelivered.length > 0) {
-            unackedDelivered.forEach((m) => ackedDeliveredIdsRef.current.add(m.id));
-            messageService.markAsDelivered(conversation.id, user.uid, unackedDelivered, isGroup);
-        }
-
-        const metrics = getScrollMetrics();
-        if (!metrics || !metrics.isNearBottom) return;
-
-        const unconsumed = allMessages.filter(
-            (m) => m.senderId !== user.uid && (!m.consumedBy || !m.consumedBy.includes(user.uid))
-        );
-
-        if (unconsumed.length > 0) {
-            if (readReceiptsEnabled) {
-                messageService.markAsSeen(conversation.id, user.uid, unconsumed, isGroup);
-            } else {
-                messageService.markAsConsumedOnly(conversation.id, user.uid, unconsumed);
-            }
-        }
-    }, [conversation?.id, user?.uid, allMessages, isGroup, user?.privacy?.readReceipts, getScrollMetrics]);
-
-    // Central programmatic scroll engine
-    const scrollToBottom = useCallback((instant = false) => {
-        const container = chatContainerRef.current;
-        if (!container) return;
-
-        if (scrollAnimationRef.current) {
-            cancelAnimationFrame(scrollAnimationRef.current);
-            scrollAnimationRef.current = null;
-        }
-
-        const targetTop = container.scrollHeight - container.clientHeight;
-
-        if (instant) {
-            container.scrollTop = targetTop;
-            setIsAwayFromBottom(false);
-            setHasNewMessagesBelow(false);
-            processAcknowledgements();
-            return;
-        }
-
-        const startTop = container.scrollTop;
-        const distance = targetTop - startTop;
-
-        if (Math.abs(distance) < 2) {
-            setIsAwayFromBottom(false);
-            setHasNewMessagesBelow(false);
-            processAcknowledgements();
-            return;
-        }
-
-        let startTime = null;
-        const duration = 250;
-        const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
-
-        const animateScroll = (timestamp) => {
-            if (!startTime) startTime = timestamp;
-            const progress = timestamp - startTime;
-            const percent = Math.min(progress / duration, 1);
-
-            // FIX: Dynamically recalculate the target every frame to track expanding DOM (prevents clipping)
-            const currentTargetTop = container.scrollHeight - container.clientHeight;
-            const currentDistance = currentTargetTop - startTop;
-
-            container.scrollTop = startTop + currentDistance * easeOutCubic(percent);
-
-            if (progress < duration) {
-                scrollAnimationRef.current = requestAnimationFrame(animateScroll);
-            } else {
-                container.scrollTop = currentTargetTop;
-                setIsAwayFromBottom(false);
-                setHasNewMessagesBelow(false);
-                scrollAnimationRef.current = null;
-                processAcknowledgements();
-            }
-        };
-
-        scrollAnimationRef.current = requestAnimationFrame(animateScroll);
-    }, [processAcknowledgements]);
-
-    // Triggers when user manually scrolls
-    const handleScroll = useCallback(() => {
-        const metrics = getScrollMetrics();
-        if (!metrics) return;
-
-        // Automatically toggle navigator based purely on scroll position
-        setIsAwayFromBottom(!metrics.isNearBottom);
-
-        if (metrics.isNearBottom) {
-            setHasNewMessagesBelow(false);
-            processAcknowledgements();
-        }
-    }, [getScrollMetrics, processAcknowledgements]);
-
-    // Detect actual human interruption (cancels animation & calculates intention)
-    useEffect(() => {
-        const container = chatContainerRef.current;
-        if (!container) return;
-
-        const handleUserInteraction = () => {
-            if (scrollAnimationRef.current) {
-                cancelAnimationFrame(scrollAnimationRef.current);
-                scrollAnimationRef.current = null;
-                handleScroll(); // Immediately calculate true user intention
-            }
-        };
-
-        container.addEventListener('wheel', handleUserInteraction, { passive: true });
-        container.addEventListener('touchstart', handleUserInteraction, { passive: true });
-        container.addEventListener('touchmove', handleUserInteraction, { passive: true });
-
-        return () => {
-            container.removeEventListener('wheel', handleUserInteraction);
-            container.removeEventListener('touchstart', handleUserInteraction);
-            container.removeEventListener('touchmove', handleUserInteraction);
-        };
-    }, [handleScroll]);
-
-    useEffect(() => {
-        const handleResize = () => {
-            const metrics = getScrollMetrics();
-            if (metrics?.isNearBottom) {
-                scrollToBottom(true);
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, [scrollToBottom, getScrollMetrics]);
-
-    useEffect(() => {
-        const metrics = getScrollMetrics();
-        if (metrics?.isNearBottom) {
-            processAcknowledgements();
-        }
-    }, [allMessages, processAcknowledgements, getScrollMetrics]);
-
-    // Main insertion logic
-    useLayoutEffect(() => {
-        if (!loading && allMessages.length > prevMessagesLengthRef.current) {
-            const isInitialLoad = prevMessagesLengthRef.current === 0;
-            const lastMsg = allMessages[allMessages.length - 1];
-            const isOwnMsg = lastMsg?.senderId === user?.uid;
-
-            if (isInitialLoad) {
-                scrollToBottom(true);
-            } else if (isOwnMsg) {
-                // FIX: Senders get smooth scroll for fluid behavior, no more jumping
-                scrollToBottom(false);
-            } else {
-                const metrics = getScrollMetrics();
-                if (metrics && metrics.isNearBottom) {
-                    scrollToBottom(false);
-                } else {
-                    setHasNewMessagesBelow(true);
-                }
-            }
-            prevMessagesLengthRef.current = allMessages.length;
-        }
-    }, [allMessages.length, loading, user?.uid, scrollToBottom, getScrollMetrics]);
-
     const typingMap = conversation?.typing || {};
     const otherUserUid = isGroup ? null : otherParticipant?.uid;
     const isOtherUserTyping = otherUserUid
         ? Boolean(typingMap[otherUserUid])
         : Object.entries(typingMap).some(([uid, val]) => uid !== user?.uid && val);
 
-    // Layout shift caused by typing indicator
-    useLayoutEffect(() => {
-        if (isOtherUserTyping !== prevTypingState.current) {
-            const metrics = getScrollMetrics();
-            if (metrics && metrics.isNearBottom) {
-                scrollToBottom(false);
-            }
-            prevTypingState.current = isOtherUserTyping;
-        }
-    }, [isOtherUserTyping, getScrollMetrics, scrollToBottom]);
-
-    const handleBadgeClick = useCallback(() => {
-        scrollToBottom(false);
-    }, [scrollToBottom]);
+    // EXACT FIX: Connect the authoritative decoupled scroll engine
+    const {
+        chatContainerRef,
+        showBottomNavigator,
+        handleBadgeClick,
+        handleScroll,
+        scrollToBottom
+    } = useChatScrollController({
+        conversationId: conversation?.id,
+        user,
+        isGroup,
+        messages: allMessages,
+        loading,
+        isOtherUserTyping
+    });
 
     const handleSendWithReply = useCallback(
         async (text, replyToMsg) => {
             if (!text.trim()) return;
 
-            // Generate strict 1:1 local correlation ID
             const clientMessageId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
             const optimisticMsg = {
@@ -396,31 +174,20 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             setOptimisticMessages(prev => [...prev, optimisticMsg]);
             setReplyingTo(null);
 
-            // FIX: Smoothly scroll to outgoing optimistic message instead of snapping instantly
-            requestAnimationFrame(() => scrollToBottom(false));
+            // Optimistic sends always force instant snap
+            scrollToBottom(true);
 
             try {
-                await messageService.sendMessage(
-                    conversation.id,
-                    user.uid,
-                    text,
-                    isGroup ? null : otherParticipant.uid,
-                    replyToMsg,
-                    isFriend,
-                    clientMessageId
-                );
+                await sendMessage(text, replyToMsg, isFriend, clientMessageId);
             } catch (error) {
                 console.error("Failed to send message:", error);
-                // Remove exclusively if failed
                 setOptimisticMessages(prev => prev.filter(m => m.id !== clientMessageId));
             }
         },
-        [conversation?.id, user, isGroup, otherParticipant, isFriend, scrollToBottom]
+        [user, isGroup, conversation, otherParticipant, isFriend, scrollToBottom, sendMessage]
     );
 
-    const handleCancelReply = useCallback(() => {
-        setReplyingTo(null);
-    }, []);
+    const handleCancelReply = useCallback(() => setReplyingTo(null), []);
 
     const handleToggleReaction = useCallback(
         (messageId, emoji) => {
@@ -695,7 +462,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 pt-4 pb-2 scrollbar-thin relative flex flex-col"
+                className="flex-1 overflow-y-auto px-4 pt-4 flex flex-col relative scrollbar-thin"
             >
                 {loading ? (
                     showLoading ? (
@@ -788,12 +555,11 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                         <AnimatePresence>
                             {isOtherUserTyping && (
                                 <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
+                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 10, transition: { duration: 0.15 } }}
                                     transition={{ duration: 0.2 }}
-                                    className="flex items-center space-x-2 mb-2 mt-1 select-none flex-shrink-0"
-                                    style={{ overflow: 'hidden' }}
+                                    className="flex items-center space-x-2 mb-2 mt-1 select-none flex-shrink-0 origin-bottom-left"
                                 >
                                     <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5 ml-2 w-max">
                                         <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -804,13 +570,14 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             )}
                         </AnimatePresence>
 
-                        <div ref={messagesEndRef} className="h-0 flex-shrink-0" />
+                        {/* EXACT FIX: Explicit structural buffer to definitively clear composer absolute overlap bounds */}
+                        <div className="h-6 flex-shrink-0 w-full" />
                     </div>
                 )}
             </div>
 
             <AnimatePresence>
-                {isAwayFromBottom && (
+                {showBottomNavigator && (
                     <motion.button
                         initial={{ opacity: 0, y: 10, scale: 0.8 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -822,12 +589,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                         </svg>
-                        {hasNewMessagesBelow && (
-                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 border-2 border-[var(--bg-main)]"></span>
-                            </span>
-                        )}
+                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 border-2 border-[var(--bg-main)]"></span>
+                        </span>
                     </motion.button>
                 )}
             </AnimatePresence>

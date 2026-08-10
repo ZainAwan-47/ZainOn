@@ -43,7 +43,6 @@ export const MessageBubble = memo(({
     const editInputRef = useRef(null);
     const containerRef = useRef(null);
 
-    // Edit Mode Auto-Scroll Logic
     useEffect(() => {
         if (isEditing) {
             const textVal = message.text || '';
@@ -64,7 +63,6 @@ export const MessageBubble = memo(({
         }
     }, [isEditing, message.text]);
 
-    // Context Menu Auto-Scroll Logic
     useEffect(() => {
         if (!showMenu) return;
 
@@ -88,7 +86,6 @@ export const MessageBubble = memo(({
     const isStarred = Boolean(message.isStarred?.[currentUid]);
     const reactionsMap = message.reactions || {};
 
-    // 1 minute and 45 seconds time window check (105,000 ms)
     const canEdit = (() => {
         if (message.senderId !== currentUid || message.isDeleted) return false;
         const ts = message.createdAt;
@@ -171,12 +168,11 @@ export const MessageBubble = memo(({
     return (
         <motion.div
             ref={containerRef}
-            // EXACT LOGIC FIX: 'layout' prop is REMOVED to prevent scroll height race condition/clipping.
-            // A premium Spring physics creates the flawless glide.
-            initial={{ opacity: 0, y: 30, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-            transition={{ type: "spring", stiffness: 280, damping: 25 }}
+            // EXACT FIX (Bug 5): 'layout' prop removed to stop continuous 60fps bounding rect thrashing.
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
             className={`flex items-center space-x-2 my-1 group select-none ${isOwn ? 'flex-row-reverse space-x-reverse justify-start' : 'justify-start'} ${spotlightClasses}`}
         >
             {isMultiSelectMode && !message.isDeleted && (
