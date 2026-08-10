@@ -26,7 +26,7 @@ export const useChatScrollController = ({
     // Deterministic ↓ Navigator State
     const [showBottomNavigator, setShowBottomNavigator] = useState(false);
 
-    // Reset state strictly when conversation changes to prevent memory leaks across chats
+    // Reset state strictly when conversation changes
     useEffect(() => {
         prevMessageIdsRef.current = new Set();
         setShowBottomNavigator(false);
@@ -41,7 +41,8 @@ export const useChatScrollController = ({
     const processAcknowledgements = useCallback(() => {
         if (!conversationId || !user?.uid || messages.length === 0) return;
 
-        const isAtBottom = distanceFromBottomRef.current <= 20;
+        // Uses PRE-MUTATION distance to accurately gauge user intent
+        const isAtBottom = distanceFromBottomRef.current <= 50;
         const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
 
         const toMarkSeen = [];
@@ -76,7 +77,13 @@ export const useChatScrollController = ({
         }
     }, [conversationId, user?.uid, messages, isGroup, user?.privacy?.readReceipts]);
 
-    // Isolated pure scroll function. Only executes physics.
+    // Guarantee delivery and seen receipts run reactively the millisecond messages arrive
+    useEffect(() => {
+        processAcknowledgements();
+    }, [messages, processAcknowledgements]);
+
+    // EXACT FIX: Lerp (Linear Interpolation) Scroll Engine. 
+    // Dynamically chases the expanding DOM height until the distance is 0. Impossible to clip.
     const performScrollToBottom = useCallback((instant = false) => {
         const container = chatContainerRef.current;
         if (!container) return;
@@ -87,7 +94,7 @@ export const useChatScrollController = ({
 
         scrollTimeoutRef.current = setTimeout(() => {
             isProgrammaticScrollRef.current = false;
-        }, 500);
+        }, 1000);
 
         if (instant) {
             container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
@@ -98,30 +105,23 @@ export const useChatScrollController = ({
             return;
         }
 
-        const startTop = container.scrollTop;
-        let startTime = null;
-        const duration = 250;
+        const animateScroll = () => {
+            if (!container) return;
+            const targetTop = container.scrollHeight - container.clientHeight;
+            const currentTop = container.scrollTop;
+            const distance = targetTop - currentTop;
 
-        const animateScroll = (timestamp) => {
-            if (!startTime) startTime = timestamp;
-            const progress = timestamp - startTime;
-            const percent = Math.min(progress / duration, 1);
-
-            const easeOutCubic = 1 - Math.pow(1 - percent, 3);
-            const currentTargetTop = container.scrollHeight - container.clientHeight;
-            const currentDistance = currentTargetTop - startTop;
-
-            container.scrollTop = startTop + currentDistance * easeOutCubic;
-
-            if (progress < duration) {
+            if (distance > 1) {
+                // Smoothly glide towards the target (15% of remaining distance per frame)
+                container.scrollTop += Math.max(Math.ceil(distance * 0.15), 1);
                 scrollAnimationRef.current = requestAnimationFrame(animateScroll);
             } else {
-                container.scrollTop = currentTargetTop;
+                container.scrollTop = targetTop;
                 setShowBottomNavigator(false);
                 distanceFromBottomRef.current = 0;
                 processAcknowledgements();
+                isProgrammaticScrollRef.current = false;
                 scrollAnimationRef.current = null;
-                setTimeout(() => { isProgrammaticScrollRef.current = false; }, 50);
             }
         };
 
@@ -138,8 +138,8 @@ export const useChatScrollController = ({
         if (isProgrammaticScrollRef.current) return;
 
         // If user manually touches bottom, reliably clear new-message state and run acks
-        if (dist <= 10 && showBottomNavigator) {
-            setShowBottomNavigator(false);
+        if (dist <= 50) {
+            if (showBottomNavigator) setShowBottomNavigator(false);
             processAcknowledgements();
         }
     }, [showBottomNavigator, processAcknowledgements]);
@@ -196,14 +196,14 @@ export const useChatScrollController = ({
                 // Own messages instantly pan
                 performScrollToBottom(false);
             } else if (hasIncomingNew) {
-                // Determine Strict Active Threshold BEFORE DOM mutates
+                // Determine Strict Active Threshold
                 const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
                 const threshold = autoScrollEnabled ? 400 : 200;
 
                 if (dist <= threshold) {
                     performScrollToBottom(false);
                 } else {
-                    // Beyond threshold: Strict layout lock. Flag badge.
+                    // Beyond threshold: Strict layout lock. Flag badge. DO NOT DISTURB USER.
                     setShowBottomNavigator(true);
                 }
             }
@@ -217,9 +217,9 @@ export const useChatScrollController = ({
     // =========================================================================
     useLayoutEffect(() => {
         if (isOtherUserTyping !== prevTypingStateRef.current) {
-            // Typing ONLY auto-scrolls if explicitly within 50px. Does NOT flag badge.
+            // Typing ONLY auto-scrolls if explicitly within 50px. Never disturbs history reading.
             if (isOtherUserTyping && distanceFromBottomRef.current <= 50) {
-                requestAnimationFrame(() => performScrollToBottom(false));
+                performScrollToBottom(false);
             }
             prevTypingStateRef.current = isOtherUserTyping;
         }

@@ -53,10 +53,20 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const [optimisticMessages, setOptimisticMessages] = useState([]);
 
     const allMessages = useMemo(() => {
-        if (optimisticMessages.length === 0) return messages;
+        if (messages.length === 0 && optimisticMessages.length === 0) return [];
         const realIds = new Set(messages.map(m => m.id));
         const pendingOptimistic = optimisticMessages.filter(m => !realIds.has(m.id));
-        return [...messages, ...pendingOptimistic];
+        const combined = [...messages, ...pendingOptimistic];
+
+        return combined.sort((a, b) => {
+            const getTime = (msg) => {
+                if (!msg.createdAt) return Date.now();
+                if (typeof msg.createdAt.toMillis === 'function') return msg.createdAt.toMillis();
+                if (msg.createdAt instanceof Date) return msg.createdAt.getTime();
+                return Date.now();
+            };
+            return getTime(a) - getTime(b);
+        });
     }, [messages, optimisticMessages]);
 
     React.useEffect(() => {
@@ -133,7 +143,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         ? Boolean(typingMap[otherUserUid])
         : Object.entries(typingMap).some(([uid, val]) => uid !== user?.uid && val);
 
-    // EXACT FIX: Connect the authoritative decoupled scroll engine
+    // Connect the decoupled state machine scroll engine
     const {
         chatContainerRef,
         showBottomNavigator,
@@ -174,8 +184,8 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             setOptimisticMessages(prev => [...prev, optimisticMsg]);
             setReplyingTo(null);
 
-            // Optimistic sends always force instant snap
-            scrollToBottom(true);
+            // Optimistic sends always force smooth pan
+            scrollToBottom(false);
 
             try {
                 await sendMessage(text, replyToMsg, isFriend, clientMessageId);
@@ -462,7 +472,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
             <div
                 ref={chatContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto px-4 pt-4 flex flex-col relative scrollbar-thin"
+                className="flex-1 overflow-y-auto px-4 pt-4 pb-3 scrollbar-thin relative flex flex-col"
             >
                 {loading ? (
                     showLoading ? (
@@ -569,9 +579,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                                 </motion.div>
                             )}
                         </AnimatePresence>
-
-                        {/* EXACT FIX: Explicit structural buffer to definitively clear composer absolute overlap bounds */}
-                        <div className="h-6 flex-shrink-0 w-full" />
                     </div>
                 )}
             </div>

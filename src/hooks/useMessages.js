@@ -32,8 +32,11 @@ export const useMessages = (conversationId, recipientUid) => {
         return () => unsubscribe();
     }, [conversationId, user?.uid]);
 
+    // EXACT FIX: Forwarding ALL 4 arguments (including clientMessageId).
+    // This perfectly merges optimistic messages with real Firestore messages, 
+    // permanently eliminating Grey Duplicates and unwanted drag-up scrolls.
     const sendMessage = useCallback(
-        async (text, replyTo = null) => {
+        async (text, replyTo = null, isFriend = true, clientMessageId = null) => {
             if (!conversationId || !user?.uid || !text.trim()) return;
             try {
                 await messageService.sendMessage(
@@ -41,7 +44,9 @@ export const useMessages = (conversationId, recipientUid) => {
                     user.uid,
                     text,
                     recipientUid,
-                    replyTo
+                    replyTo,
+                    isFriend,
+                    clientMessageId
                 );
             } catch (error) {
                 console.error('[useMessages.sendMessage]:', error);
