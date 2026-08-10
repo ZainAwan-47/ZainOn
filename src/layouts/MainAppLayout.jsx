@@ -48,11 +48,9 @@ export const MainAppLayout = () => {
     const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
 
     const themeMenuRef = useRef(null);
-    // FIX: Distinct refs for Desktop and Mobile bells to prevent outside-click conflicts
     const desktopBellRef = useRef(null);
     const mobileBellRef = useRef(null);
 
-    // SINGLE SOURCE OF TRUTH: Grab everything needed for the panel
     const {
         notifications,
         unreadCount,
@@ -65,12 +63,11 @@ export const MainAppLayout = () => {
             if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
                 setIsThemeMenuOpen(false);
             }
-            // Check BOTH refs safely
             if (
                 (desktopBellRef.current && desktopBellRef.current.contains(e.target)) ||
                 (mobileBellRef.current && mobileBellRef.current.contains(e.target))
             ) {
-                return; // Let the bell icon handle its own toggle click safely
+                return;
             }
             setIsNotificationPanelOpen(false);
         };
@@ -107,7 +104,6 @@ export const MainAppLayout = () => {
 
     useGlobalDeliveryAck(user?.uid, conversations);
 
-    // BACKGROUND CLEAN-UP
     useEffect(() => {
         if (!activeConversationId || !notifications || notifications.length === 0) return;
 
@@ -157,10 +153,8 @@ export const MainAppLayout = () => {
         }
     };
 
-    // ADVANCED "MARK ALL READ" NUKE: Clears panel entirely AND pushes read receipts/clears sidebar badges
     const handleMarkAllNotificationsRead = async () => {
         try {
-            // 1. Fire off read receipts to Firebase so senders see "Seen" status
             const unreadMsgNotifs = notifications.filter(n =>
                 n.messageId && (n.type === 'direct_message' || n.type === 'group_message')
             );
@@ -178,7 +172,6 @@ export const MainAppLayout = () => {
             });
             await Promise.all(markSeenPromises);
 
-            // 2. Clear ALL Sidebar Conversation Badges instantly
             const unreadConvs = conversations.filter(c => c.unreadCount > 0);
             if (unreadConvs.length > 0) {
                 const batch = writeBatch(db);
@@ -191,7 +184,6 @@ export const MainAppLayout = () => {
                 await batch.commit();
             }
 
-            // 3. Wipe panel clean to 0
             await deleteAllNotifications();
             setIsNotificationPanelOpen(false);
         } catch (error) {
@@ -199,15 +191,12 @@ export const MainAppLayout = () => {
         }
     };
 
-    // CLICK NOTIFICATION TO ROUTE: Synchronous execution prevents race conditions
     const handleNotificationNavigate = async (notification) => {
         const { type, targetId, id, messageId } = notification;
 
-        // 1. Instantly close UI 
         setIsNotificationPanelOpen(false);
         if (window.innerWidth < 768) closeMobileMenu();
 
-        // 2. Permanently delete notification & trigger sender read receipt
         try {
             if (id) await deleteNotification(id);
             if (messageId && targetId && (type === 'direct_message' || type === 'group_message')) {
@@ -217,7 +206,6 @@ export const MainAppLayout = () => {
             console.error("Notification clearance error:", err);
         }
 
-        // 3. Set Active UI State
         if (targetId) {
             setActiveConversationId(targetId);
         }
@@ -232,7 +220,6 @@ export const MainAppLayout = () => {
             setActiveTab('chats');
         }
 
-        // 4. Finally, route to the unified chat workspace
         navigate('/chat');
     };
 
@@ -241,7 +228,6 @@ export const MainAppLayout = () => {
 
     return (
         <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex select-none transition-colors duration-300">
-            {/* Mobile Sidebar Overlay */}
             {isMobileMenuOpen && (
                 <div
                     onClick={closeMobileMenu}
@@ -250,9 +236,9 @@ export const MainAppLayout = () => {
                 />
             )}
 
-            <aside className={`fixed md:static inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} relative`}>
+            {/* EXACT FIX: 'absolute md:relative' cleanly strips sidebar from mobile layout constraints */}
+            <aside className={`absolute md:relative inset-y-0 left-0 z-50 w-[336px] min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
 
-                {/* Top Header / Branding Area */}
                 <div className="h-[72px] px-5 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 bg-[var(--bg-surface)] backdrop-blur-md relative z-[60] overflow-visible">
                     <div className="flex items-center space-x-3.5">
                         <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-[var(--color-primary)]/20 ring-1 ring-white/10">
@@ -267,7 +253,6 @@ export const MainAppLayout = () => {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                        {/* Desktop Notification Bell Container - Attached to desktopBellRef */}
                         <div className="relative overflow-visible z-[60]" ref={desktopBellRef}>
                             <NotificationBell
                                 onClick={(e) => {
@@ -298,7 +283,6 @@ export const MainAppLayout = () => {
                     </div>
                 </div>
 
-                {/* SIDEBAR BLUR BACKDROP: Only blurs the lists strictly INSIDE the sidebar */}
                 {isNotificationPanelOpen && (
                     <div
                         onClick={(e) => {
@@ -413,7 +397,6 @@ export const MainAppLayout = () => {
                     <NavLink to="/settings" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Settings</NavLink>
                 </div>
 
-                {/* Bottom User Footer */}
                 <div className="h-[72px] px-4 border-t border-[var(--border-color)] bg-[var(--bg-surface)]/95 backdrop-blur-md flex items-center justify-between shrink-0 relative z-20">
                     <div className="flex items-center space-x-3 min-w-0 pr-2">
                         <Avatar
@@ -517,7 +500,6 @@ export const MainAppLayout = () => {
                         <span className="text-base font-bold text-[var(--text-primary)]">ZainOn</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                        {/* Mobile Notification Bell Container - Attached to mobileBellRef */}
                         <div className="relative overflow-visible z-[60]" ref={mobileBellRef}>
                             <NotificationBell
                                 onClick={(e) => {
@@ -552,7 +534,6 @@ export const MainAppLayout = () => {
                     </div>
                 </header>
 
-                {/* Mobile specific blur for main content when panel opens from mobile header */}
                 {isNotificationPanelOpen && (
                     <div
                         onClick={(e) => {
