@@ -168,12 +168,54 @@ export const MessageBubble = memo(({
     return (
         <motion.div
             ref={containerRef}
-            // EXACT FIX (Bug 5): 'layout' prop removed to stop continuous 60fps bounding rect thrashing.
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className={`flex items-center space-x-2 my-1 group select-none ${isOwn ? 'flex-row-reverse space-x-reverse justify-start' : 'justify-start'} ${spotlightClasses}`}
+            // THE ULTIMATE "AIRY & BUTTER" LOGIC:
+            // 1. Reduced 'y' distance so it glides naturally without feeling dragged.
+            // 2. Property-specific transitions: Height uses a buttery Bezier curve to push older messages up linearly.
+            // 3. Transform (Y/Scale) uses a lightweight, airy spring to float into the reserved space.
+            initial={{
+                opacity: 0,
+                height: 0,
+                marginTop: 0,
+                marginBottom: 0,
+                y: 20, // Reduced from 35 for a lighter, less forced travel distance
+                scale: 0.9
+            }}
+            animate={{
+                opacity: 1,
+                height: 'auto',
+                marginTop: 4,
+                marginBottom: 4,
+                y: 0,
+                scale: 1
+            }}
+            exit={{
+                opacity: 0,
+                height: 0,
+                marginTop: 0,
+                marginBottom: 0,
+                scale: 0.9,
+                transition: { duration: 0.2, ease: "easeIn" }
+            }}
+            transition={{
+                // 1. DOM Layout: Time-based bezier curve. Perfectly smoothly pushes old messages up. ZERO Layout Thrashing.
+                height: { duration: 0.35, ease: [0.25, 1, 0.5, 1] },
+                marginTop: { duration: 0.35, ease: [0.25, 1, 0.5, 1] },
+                marginBottom: { duration: 0.35, ease: [0.25, 1, 0.5, 1] },
+                opacity: { duration: 0.25 },
+
+                // 2. Visual Float: A much lighter, airier spring for that weightless glide-in feel.
+                default: {
+                    type: "spring",
+                    stiffness: 180,
+                    damping: 18,
+                    mass: 0.6 // Lighter mass makes it feel effortless and airy
+                }
+            }}
+            style={{
+                overflow: showMenu ? 'visible' : 'hidden',
+                transformOrigin: isOwn ? 'bottom right' : 'bottom left'
+            }}
+            className={`flex items-center space-x-2 group select-none ${isOwn ? 'flex-row-reverse space-x-reverse justify-start' : 'justify-start'} ${spotlightClasses}`}
         >
             {isMultiSelectMode && !message.isDeleted && (
                 <div className="px-2">

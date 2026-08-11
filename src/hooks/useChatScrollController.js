@@ -11,37 +11,32 @@ export const useChatScrollController = ({
 }) => {
     const chatContainerRef = useRef(null);
 
-    // Highly accurate, DOM-independent trackers
     const distanceFromBottomRef = useRef(0);
     const isProgrammaticScrollRef = useRef(false);
-    const scrollAnimationRef = useRef(null);
     const scrollTimeoutRef = useRef(null);
+    const scrollAnimationRef = useRef(null);
 
-    // State Machine Memory
     const prevMessageIdsRef = useRef(new Set());
     const prevTypingStateRef = useRef(false);
     const seenInFlightRef = useRef(new Set());
     const deliveredInFlightRef = useRef(new Set());
 
-    // Deterministic ↓ Navigator State
     const [showBottomNavigator, setShowBottomNavigator] = useState(false);
 
-    // Reset state strictly when conversation changes
     useEffect(() => {
         prevMessageIdsRef.current = new Set();
         setShowBottomNavigator(false);
         distanceFromBottomRef.current = 0;
         isProgrammaticScrollRef.current = false;
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
         if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
         seenInFlightRef.current.clear();
         deliveredInFlightRef.current.clear();
     }, [conversationId]);
 
-    // EXACT FIX: Mutually exclusive Seen vs Delivered logic with in-flight retry capabilities
     const processAcknowledgements = useCallback(() => {
         if (!conversationId || !user?.uid || messages.length === 0) return;
 
-        // Uses PRE-MUTATION distance to accurately gauge user intent
         const isAtBottom = distanceFromBottomRef.current <= 50;
         const readReceiptsEnabled = user?.privacy?.readReceipts ?? true;
 
@@ -77,27 +72,21 @@ export const useChatScrollController = ({
         }
     }, [conversationId, user?.uid, messages, isGroup, user?.privacy?.readReceipts]);
 
-    // Guarantee delivery and seen receipts run reactively the millisecond messages arrive
     useEffect(() => {
         processAcknowledgements();
     }, [messages, processAcknowledgements]);
 
-    // EXACT FIX: Lerp (Linear Interpolation) Scroll Engine. 
-    // Dynamically chases the expanding DOM height until the distance is 0. Impossible to clip.
+    // THE PREMIUM SCROLL FIX: Syncs perfectly with the Framer Motion airy spring.
     const performScrollToBottom = useCallback((instant = false) => {
         const container = chatContainerRef.current;
         if (!container) return;
 
         isProgrammaticScrollRef.current = true;
-        if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
         if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-
-        scrollTimeoutRef.current = setTimeout(() => {
-            isProgrammaticScrollRef.current = false;
-        }, 1000);
+        if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
 
         if (instant) {
-            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+            container.scrollTop = container.scrollHeight;
             setShowBottomNavigator(false);
             distanceFromBottomRef.current = 0;
             processAcknowledgements();
@@ -105,15 +94,27 @@ export const useChatScrollController = ({
             return;
         }
 
-        const animateScroll = () => {
-            if (!container) return;
-            const targetTop = container.scrollHeight - container.clientHeight;
-            const currentTop = container.scrollTop;
-            const distance = targetTop - currentTop;
+        const startTop = container.scrollTop;
+        let startTime = null;
 
-            if (distance > 1) {
-                // Smoothly glide towards the target (15% of remaining distance per frame)
-                container.scrollTop += Math.max(Math.ceil(distance * 0.15), 1);
+        // Extended duration to 450ms to perfectly match the soft, floating tail of the new spring physics
+        const duration = 450;
+
+        // Premium "Airy" Ease-Out-Quint curve: Fast liftoff, extremely soft and weightless landing
+        const airyEase = (t) => 1 - Math.pow(1 - t, 5);
+
+        const animateScroll = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const ease = airyEase(progress);
+
+            // Fetch target iteratively so it adapts dynamically if the DOM height changes mid-animation
+            const targetTop = container.scrollHeight - container.clientHeight;
+            const distance = targetTop - startTop;
+
+            container.scrollTop = startTop + (distance * ease);
+
+            if (progress < 1) {
                 scrollAnimationRef.current = requestAnimationFrame(animateScroll);
             } else {
                 container.scrollTop = targetTop;
@@ -121,7 +122,6 @@ export const useChatScrollController = ({
                 distanceFromBottomRef.current = 0;
                 processAcknowledgements();
                 isProgrammaticScrollRef.current = false;
-                scrollAnimationRef.current = null;
             }
         };
 
@@ -137,7 +137,6 @@ export const useChatScrollController = ({
 
         if (isProgrammaticScrollRef.current) return;
 
-        // If user manually touches bottom, reliably clear new-message state and run acks
         if (dist <= 50) {
             if (showBottomNavigator) setShowBottomNavigator(false);
             processAcknowledgements();
@@ -151,8 +150,8 @@ export const useChatScrollController = ({
         const handleUserInteraction = () => {
             if (isProgrammaticScrollRef.current) {
                 isProgrammaticScrollRef.current = false;
-                if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
                 if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+                if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
                 handleScroll();
             }
         };
@@ -168,9 +167,22 @@ export const useChatScrollController = ({
         };
     }, [handleScroll]);
 
-    // =========================================================================
-    // INTENT CLASSIFIER: STRICT MESSAGE THRESHOLDS
-    // =========================================================================
+    useEffect(() => {
+        const container = chatContainerRef.current;
+        if (!container) return;
+
+        const resizeObserver = new ResizeObserver(() => {
+            if (!isProgrammaticScrollRef.current && distanceFromBottomRef.current <= 60) {
+                container.scrollTop = container.scrollHeight;
+                distanceFromBottomRef.current = 0;
+            }
+        });
+
+        resizeObserver.observe(container);
+        if (container.firstElementChild) resizeObserver.observe(container.firstElementChild);
+        return () => resizeObserver.disconnect();
+    }, []);
+
     useLayoutEffect(() => {
         if (loading || messages.length === 0) return;
 
@@ -183,27 +195,22 @@ export const useChatScrollController = ({
             return;
         }
 
-        // Identify genuinely new messages (ignores optimistic syncs/edits)
         const newMessages = messages.filter(m => !prevIds.has(m.id));
 
         if (newMessages.length > 0) {
             const hasOwnNew = newMessages.some(m => m.senderId === user?.uid);
             const hasIncomingNew = newMessages.some(m => m.senderId !== user?.uid);
-
             const dist = distanceFromBottomRef.current;
 
             if (hasOwnNew) {
-                // Own messages instantly pan
                 performScrollToBottom(false);
             } else if (hasIncomingNew) {
-                // Determine Strict Active Threshold
                 const autoScrollEnabled = user?.chatPrefs?.autoScroll ?? true;
                 const threshold = autoScrollEnabled ? 400 : 200;
 
                 if (dist <= threshold) {
                     performScrollToBottom(false);
                 } else {
-                    // Beyond threshold: Strict layout lock. Flag badge. DO NOT DISTURB USER.
                     setShowBottomNavigator(true);
                 }
             }
@@ -212,12 +219,8 @@ export const useChatScrollController = ({
         prevMessageIdsRef.current = currentIds;
     }, [messages, loading, user?.uid, user?.chatPrefs?.autoScroll, performScrollToBottom]);
 
-    // =========================================================================
-    // INTENT CLASSIFIER: STRICT 50px TYPING THRESHOLD
-    // =========================================================================
     useLayoutEffect(() => {
         if (isOtherUserTyping !== prevTypingStateRef.current) {
-            // Typing ONLY auto-scrolls if explicitly within 50px. Never disturbs history reading.
             if (isOtherUserTyping && distanceFromBottomRef.current <= 50) {
                 performScrollToBottom(false);
             }
@@ -225,7 +228,6 @@ export const useChatScrollController = ({
         }
     }, [isOtherUserTyping, performScrollToBottom]);
 
-    // Broadcast explicitly scoped unresolved new-message state to sidebar
     useEffect(() => {
         const detail = { conversationId, showBottomNavigator };
         window.dispatchEvent(new CustomEvent('zainon_chat_reading_state', { detail }));

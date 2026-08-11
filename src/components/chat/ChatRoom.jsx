@@ -562,14 +562,32 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             );
                         })}
 
+                        {/* DECOUPLED TYPING INDICATOR:
+                            mode="popLayout" instantly removes the indicator from the layout flow on exit.
+                            This guarantees the new incoming message mounts directly in the correct spot 
+                            without any vertical collisions or jitter. */}
+                        {/* THE SMART UX FIX: 
+                            mode="popLayout" ensures that IF a message arrives, the indicator instantly 
+                            becomes 'absolute' and gives up its layout space. It fades out in the background 
+                            while the new message renders instantly. If NO message arrives, it glides left smoothly. */}
+                        {/* THE SMOOTH COLLAPSE FIX: 
+                            popLayout removed. We now strictly animate 'height' to 0 on exit. 
+                            If no message arrives, it smoothly collapses like an accordion. 
+                            If a message arrives, it shrinks simultaneously while the new message fades in. */}
                         <AnimatePresence>
                             {isOtherUserTyping && (
                                 <motion.div
-                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.95, y: 10, transition: { duration: 0.15 } }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex items-center space-x-2 mb-2 mt-1 select-none flex-shrink-0 origin-bottom-left"
+                                    initial={{ opacity: 0, x: -10, height: 0, marginTop: 0, marginBottom: 0 }}
+                                    animate={{ opacity: 1, x: 0, height: 'auto', marginTop: 4, marginBottom: 8 }}
+                                    exit={{
+                                        opacity: 0,
+                                        x: -10,
+                                        height: 0,
+                                        marginTop: 0,
+                                        marginBottom: 0,
+                                        transition: { duration: 0.25, ease: "easeOut" }
+                                    }}
+                                    className="flex items-center space-x-2 select-none flex-shrink-0 origin-left overflow-hidden"
                                 >
                                     <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] px-4 py-2.5 rounded-2xl rounded-tl-xs shadow-sm flex items-center space-x-1.5 ml-2 w-max">
                                         <div className="w-2 h-2 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
