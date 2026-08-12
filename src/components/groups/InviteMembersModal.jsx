@@ -108,7 +108,9 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
     return (
         <AnimatePresence>
             <div
-                className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 select-none"
+                // EXACT FIX 1: Changed 'p-0 sm:p-4' to 'p-3 sm:p-4'. 
+                // This ensures that even on mobile, there is a small margin around the modal.
+                className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 select-none"
                 onClick={onClose}
             >
                 <motion.div
@@ -116,7 +118,11 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 15 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full h-full sm:h-auto sm:max-h-[85vh] max-w-md bg-[var(--bg-surface)] border-0 sm:border border-[var(--border-color)] rounded-none sm:rounded-3xl p-5 shadow-2xl flex flex-col overflow-hidden transition-colors duration-300"
+                    // EXACT FIX 2: 
+                    // - Removed 'h-full sm:h-auto', made it 'h-auto max-h-[90%]' globally.
+                    // - Removed 'rounded-none', made it 'rounded-2xl sm:rounded-3xl' globally.
+                    // - Removed 'border-0', made it always have a border.
+                    className="w-full h-auto max-h-[90%] max-w-md bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col overflow-hidden transition-colors duration-300"
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)] shrink-0">
@@ -155,7 +161,7 @@ export const InviteMembersModal = memo(({ isOpen, group, onClose, onMembersAdded
                             </span>
                         </div>
 
-                        <div className="space-y-1.5 min-h-[200px] max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                        <div className="space-y-1.5 min-h-[200px] overflow-y-auto pr-1 scrollbar-thin">
                             {invitableFriends.length === 0 ? (
                                 <div className="py-12 px-4 text-center space-y-1 select-none">
                                     <span className="text-xs font-bold text-[var(--text-primary)] block">All Friends Are Members</span>

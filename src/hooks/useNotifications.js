@@ -1,11 +1,7 @@
-// React
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-
-// Hooks & Services
 import { useAuth } from './useAuth';
 import { notificationService } from '../services/notificationService';
 
-// EXACT FIX: Intercept notifications at the root based on active chat
 export const useNotifications = (activeConversationId = null) => {
     const { user } = useAuth();
     const currentUid = user?.uid;
@@ -19,6 +15,7 @@ export const useNotifications = (activeConversationId = null) => {
         activeChatRef.current = activeConversationId;
     }, [activeConversationId]);
 
+    // 1. Subscription Effect (Listens for incoming)
     useEffect(() => {
         if (!currentUid) {
             setNotifications([]);
@@ -33,12 +30,10 @@ export const useNotifications = (activeConversationId = null) => {
         const unsubscribe = notificationService.subscribeToNotifications(
             currentUid,
             (data) => {
-                // If a notification arrives for the currently open chat, destroy it immediately.
-                // It will NEVER hit the UI, preventing the bell from incrementing or the toast from firing.
                 const filtered = data.filter((n) => {
                     const isChatMsg = n.type === 'direct_message' || n.type === 'group_message';
                     if (isChatMsg && n.targetId === activeChatRef.current) {
-                        notificationService.deleteNotification(currentUid, n.id);
+                        notificationService.deleteNotification(currentUid, n.id).catch(() => { });
                         return false;
                     }
                     return true;
@@ -51,57 +46,65 @@ export const useNotifications = (activeConversationId = null) => {
         );
 
         return () => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
+            if (typeof unsubscribe === 'function') unsubscribe();
         };
     }, [currentUid]);
 
-    const unreadCount = useMemo(() => {
-        return notifications.filter((n) => !n.read).length;
-    }, [notifications]);
+    // EXACT FIX 1: The Sweeper Effect. 
+    // Instantly wipes existing unread notifications when a user opens that specific chat.
+    useEffect(() => {
+        if (!activeConversationId || !currentUid || notifications.length === 0) return;
+
+        const toClear = notifications.filter(n =>
+            (n.type === 'direct_message' || n.type === 'group_message') &&
+            n.targetId === activeConversationId
+        );
+
+        if (toClear.length > 0) {
+            // Remove from UI instantly for snappy feel
+            setNotifications(prev => prev.filter(n => !toClear.includes(n)));
+            // Wipe from DB in background
+            toClear.forEach(n => {
+                notificationService.deleteNotification(currentUid, n.id).catch(() => { });
+            });
+        }
+    }, [activeConversationId, currentUid, notifications]);
+
+    const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
     const markAsRead = useCallback(async (notificationId) => {
         if (!currentUid || !notificationId) return;
         try {
-            setError(null);
             await notificationService.markNotificationAsRead(currentUid, notificationId);
         } catch (err) {
             console.error('[useNotifications.markAsRead]:', err);
-            setError(err.message || 'Failed to mark notification as read.');
         }
     }, [currentUid]);
 
     const markAllAsRead = useCallback(async () => {
         if (!currentUid) return;
         try {
-            setError(null);
             await notificationService.markAllNotificationsAsRead(currentUid);
         } catch (err) {
             console.error('[useNotifications.markAllAsRead]:', err);
-            setError(err.message || 'Failed to mark all notifications as read.');
         }
     }, [currentUid]);
 
     const deleteNotification = useCallback(async (notificationId) => {
         if (!currentUid || !notificationId) return;
         try {
-            setError(null);
             await notificationService.deleteNotification(currentUid, notificationId);
         } catch (err) {
             console.error('[useNotifications.deleteNotification]:', err);
-            setError(err.message || 'Failed to delete notification.');
         }
     }, [currentUid]);
 
     const deleteAllNotifications = useCallback(async () => {
         if (!currentUid) return;
         try {
-            setError(null);
             await notificationService.deleteAllNotifications(currentUid);
         } catch (err) {
             console.error('[useNotifications.deleteAllNotifications]:', err);
-            setError(err.message || 'Failed to delete all notifications.');
         }
     }, [currentUid]);
 

@@ -378,7 +378,7 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-main)] transition-colors duration-300 overflow-hidden relative">
 
-            {isGroup && isGroupProfileOpen && (
+            {isGroup && (
                 <GroupProfileModal
                     group={conversation}
                     isOpen={isGroupProfileOpen}

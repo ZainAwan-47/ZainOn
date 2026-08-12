@@ -8,7 +8,21 @@ import GroupProfileModal from './GroupProfileModal';
 
 export const GroupsTab = memo(({ groups = [], loading = false, activeGroupId, onSelectGroup }) => {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+    // Separate the state so we don't destroy the modal while it's animating out
     const [selectedGroupProfile, setSelectedGroupProfile] = useState(null);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+    const handleViewProfile = (g) => {
+        setSelectedGroupProfile(g);
+        setIsProfileOpen(true);
+    };
+
+    const handleCloseProfile = () => {
+        setIsProfileOpen(false);
+        // Clean up data after exit animation finishes
+        setTimeout(() => setSelectedGroupProfile(null), 300);
+    };
 
     if (loading) {
         return (
@@ -20,7 +34,10 @@ export const GroupsTab = memo(({ groups = [], loading = false, activeGroupId, on
     }
 
     return (
-        <div className="flex flex-col space-y-2 p-1 select-none">
+        // EXACT FIX 1: Added 'relative h-full' here. 
+        // This ensures the Absolute GroupProfileModal binds perfectly to the Sidebar boundaries!
+        <div className="flex flex-col h-full space-y-2 p-1 select-none relative">
+
             {/* Modals */}
             <CreateGroupModal
                 isOpen={isCreateOpen}
@@ -30,13 +47,12 @@ export const GroupsTab = memo(({ groups = [], loading = false, activeGroupId, on
                 }}
             />
 
-            {selectedGroupProfile && (
-                <GroupProfileModal
-                    group={selectedGroupProfile}
-                    isOpen={Boolean(selectedGroupProfile)}
-                    onClose={() => setSelectedGroupProfile(null)}
-                />
-            )}
+            {/* Render Modal persistently so AnimatePresence triggers on exit */}
+            <GroupProfileModal
+                group={selectedGroupProfile}
+                isOpen={isProfileOpen}
+                onClose={handleCloseProfile}
+            />
 
             {/* Action Header */}
             <div className="flex items-center justify-between px-2 py-1">
@@ -76,7 +92,7 @@ export const GroupsTab = memo(({ groups = [], loading = false, activeGroupId, on
                             group={group}
                             isActive={group.id === activeGroupId}
                             onClick={() => onSelectGroup && onSelectGroup(group.id)}
-                            onViewProfile={(g) => setSelectedGroupProfile(g)}
+                            onViewProfile={(g) => handleViewProfile(g)}
                         />
                     ))}
                 </div>
