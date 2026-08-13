@@ -8,6 +8,7 @@ import { db } from '../../firebase/firestore';
 // Hooks & Services
 import { useAuth } from '../../hooks/useAuth';
 import { friendService } from '../../services/friendService';
+import { useToast } from '../../context/ToastContext';
 
 // Context
 import { CallContext } from '../../context/CallContext';
@@ -29,13 +30,13 @@ export const ChatHeader = memo(({
     onEnableMultiSelect,
 }) => {
     const { user } = useAuth();
+    const { showToast } = useToast();
 
     const callContext = useContext(CallContext) || {};
     const { startAudioCall, startVideoCall } = callContext;
 
     const isGroup = conversation?.type === 'group';
 
-    // EXACT FIX: Robustly resolve the other participant, guaranteeing it's never the current user
     const resolveInitialParticipant = () => {
         if (participant && participant.uid !== user?.uid) return participant;
         if (conversation?.otherParticipant && conversation.otherParticipant.uid !== user?.uid) {
@@ -112,28 +113,32 @@ export const ChatHeader = memo(({
     }
 
     const handleAudioCall = () => {
-        console.log('[CALL TRACE 1] ChatHeader Audio Call Clicked. Target:', liveParticipant);
         if (liveParticipant?.uid === user?.uid) {
             console.error('[CALL ERROR] Attempted to call yourself!');
+            return;
+        }
+        // EXACT FIX: Restrict calls to friends only
+        if (!isFriend) {
+            showToast('Calls are only allowed with friends.', 'error');
             return;
         }
         if (startAudioCall) {
             startAudioCall(liveParticipant);
-        } else {
-            console.error("[CALL TRACE ERROR] startAudioCall is missing from context.");
         }
     };
 
     const handleVideoCall = () => {
-        console.log('[CALL TRACE 1] ChatHeader Video Call Clicked. Target:', liveParticipant);
         if (liveParticipant?.uid === user?.uid) {
             console.error('[CALL ERROR] Attempted to call yourself!');
             return;
         }
+        // EXACT FIX: Restrict calls to friends only
+        if (!isFriend) {
+            showToast('Calls are only allowed with friends.', 'error');
+            return;
+        }
         if (startVideoCall) {
             startVideoCall(liveParticipant);
-        } else {
-            console.error("[CALL TRACE ERROR] startVideoCall is missing from context.");
         }
     };
 

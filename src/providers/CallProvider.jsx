@@ -5,6 +5,7 @@ import { db } from '../firebase/firestore';
 
 // Services & Hooks
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
 import { callService } from '../services/callService';
 import { messageService } from '../services/messageService';
 import { WebRTCService } from '../features/calls/services/webrtcService';
@@ -14,6 +15,7 @@ import BoundGlobalCallManager from '../features/calls/components/GlobalCallManag
 
 export const CallProvider = ({ children }) => {
     const { user } = useAuth();
+    const { showToast } = useToast();
 
     const [activeCall, setActiveCall] = useState(null);
     const [callStatus, setCallStatus] = useState('idle');
@@ -43,12 +45,11 @@ export const CallProvider = ({ children }) => {
     const iceSubRef = useRef(null);
     const targetUserSubRef = useRef(null);
 
-    // 1. GLOBAL INCOMING CALL LISTENER (Receiver Side Only)
+    // 1. GLOBAL INCOMING CALL LISTENER (Receiver Side)
     useEffect(() => {
         if (!user?.uid) return;
 
         incomingSubRef.current = callService.subscribeToIncomingCalls(user.uid, async (callData) => {
-            // CRITICAL GUARD: Never trigger incoming call UI if I am the one who initiated it
             if (callData.callerId === user.uid) return;
             if (activeCallIdRef.current) return;
 
@@ -212,7 +213,7 @@ export const CallProvider = ({ children }) => {
         };
     }, [cleanupCallState, user?.uid]);
 
-    // -- OUTGOING ACTIONS (Caller Side) --
+    // -- OUTGOING ACTIONS --
     const startCall = async (targetUser, type = 'audio') => {
         const callerUid = user?.uid;
         const targetUid = targetUser?.uid || targetUser?.id;
@@ -223,7 +224,26 @@ export const CallProvider = ({ children }) => {
         }
 
         if (targetUid === callerUid) {
-            console.error('[CallProvider ABORT] Cannot initiate a call to your own UID!');
+            showToast('You cannot call yourself.', 'error');
+            return;
+        }
+
+        // Centralized security guard: Verify friendship status before initiating call
+        try {
+            const ids = [callerUid, targetUid].sort();
+            const friendshipDocId = `${ids[0]}_${ids[1]}`;
+            const friendshipSnap = await getDoc(doc(db, 'friendships', friendshipDocId));
+
+            const friendshipData = friendshipSnap.data();
+            const isFriend = friendshipSnap.exists() && (friendshipData?.status === 'FRIENDS' || friendshipData?.status === 'accepted');
+
+            if (!isFriend) {
+                showToast('Calls are only allowed with friends.', 'error');
+                return;
+            }
+        } catch (error) {
+            console.error('[CallProvider] Failed to verify friendship status:', error);
+            showToast('Unable to verify friendship status.', 'error');
             return;
         }
 
@@ -236,10 +256,8 @@ export const CallProvider = ({ children }) => {
         hasConnectedRef.current = false;
         isInitiatorRef.current = true;
 
-        // CRITICAL FIX: Caller status must strictly be 'calling' so it shows OutgoingCallView, never incoming ringing UI
         setCallStatus('calling');
 
-        // Live subscribe to receiver presence updates
         if (targetUserSubRef.current) targetUserSubRef.current();
         targetUserSubRef.current = onSnapshot(doc(db, 'users', targetUid), (docSnap) => {
             if (docSnap.exists()) {
