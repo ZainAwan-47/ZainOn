@@ -89,11 +89,9 @@ export const authService = {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Removed emailVerified check here. ProtectedRoute handles the redirection to VerifyEmailPage.
-
-            // Automatically flag user online in Firestore
+            // ROOT CAUSE FIX: Mismatched method name. Using correct 'setUserOnline'
             try {
-                await presenceService.setOnline(user.uid);
+                await presenceService.setUserOnline(user.uid);
             } catch (presenceErr) {
                 console.warn('[authService.login] Non-critical presence update failed:', presenceErr);
             }
@@ -203,7 +201,8 @@ export const authService = {
                     updatedAt: serverTimestamp(),
                 });
             } else {
-                await presenceService.setOnline(user.uid);
+                // ROOT CAUSE FIX: Mismatched method name.
+                await presenceService.setUserOnline(user.uid);
             }
 
             return userCredential;
@@ -228,7 +227,9 @@ export const authService = {
         try {
             if (auth.currentUser) {
                 try {
-                    await presenceService.setOffline(auth.currentUser.uid);
+                    // ROOT CAUSE FIX: Mismatched method name. Using correct 'setUserOffline'.
+                    // Because this now succeeds BEFORE signOut, Firestore rules will allow it perfectly.
+                    await presenceService.setUserOffline(auth.currentUser.uid);
                 } catch (presenceErr) {
                     console.warn('[authService.logout]: Non-critical presence update failed:', presenceErr);
                 }

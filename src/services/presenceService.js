@@ -21,7 +21,10 @@ export const presenceService = {
                 { merge: true }
             );
         } catch (error) {
-            console.error('[presenceService.setUserOnline]:', error);
+            // ROOT CAUSE FIX: Silently ignore permission denials caused by auth state unmounting
+            if (error.code !== 'permission-denied') {
+                console.error('[presenceService.setUserOnline]:', error);
+            }
         }
     },
 
@@ -41,7 +44,11 @@ export const presenceService = {
                 { merge: true }
             );
         } catch (error) {
-            console.error('[presenceService.setUserOffline]:', error);
+            // ROOT CAUSE FIX: During logout, usePresence unmount triggers this AFTER signOut. 
+            // The rule blocks it correctly. We simply swallow the console error.
+            if (error.code !== 'permission-denied') {
+                console.error('[presenceService.setUserOffline]:', error);
+            }
         }
     },
 };

@@ -25,17 +25,20 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         let isMounted = true;
+        let safetyTimer;
 
-        const safetyTimer = setTimeout(() => {
-            if (isMounted && loading) {
-                console.warn('[AuthContext] Safety timeout: forcing loading completion.');
+        // ROOT CAUSE FIX: Removed the stale closure reference to `loading`.
+        // The timeout is now strictly controlled by clearing it on success.
+        safetyTimer = setTimeout(() => {
+            if (isMounted) {
+                console.warn('[AuthContext] Safety timeout triggered. Network may be slow.');
                 setLoading(false);
             }
-        }, 4000);
+        }, 6000);
 
         const initializeAuth = async () => {
             try {
-                // CRITICAL FIX: Wait for Firebase auth state persistence to fully load from storage on refresh
+                // Wait for Firebase auth state persistence to fully load from storage on refresh
                 await auth.authStateReady();
             } catch (err) {
                 console.warn('[AuthContext] authStateReady warning:', err);
@@ -103,6 +106,8 @@ export const AuthProvider = ({ children }) => {
                 }
 
                 if (isMounted) {
+                    // ROOT CAUSE FIX: Successfully initialized. Clear the timeout so it doesn't fire falsely.
+                    clearTimeout(safetyTimer);
                     setLoading(false);
                     setIsAuthenticating(false);
                 }

@@ -511,7 +511,6 @@ export const MainAppLayout = () => {
                 </header>
 
                 <main className="flex-1 flex flex-col min-h-0 relative h-full z-10">
-                    {/* EXACT FIX 1: AnimatePresence Wrapper allows the ProfilePreviewModal to gracefully exit */}
                     <AnimatePresence>
                         {selectedPreviewUser && (
                             <ProfilePreviewModal targetUser={selectedPreviewUser} onClose={() => setSelectedPreviewUser(null)} onStartChat={handleStartChatFromProfile} />
