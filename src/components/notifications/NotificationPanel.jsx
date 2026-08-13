@@ -1,6 +1,9 @@
 // React
 import React from 'react';
 
+// Third Party Libraries
+import { motion } from 'framer-motion';
+
 // Hooks & Services
 import { useNotifications } from '../../hooks/useNotifications';
 
@@ -23,7 +26,18 @@ const NotificationPanel = ({ onClose, onNavigate, onMarkAllRead }) => {
     };
 
     return (
-        <div className="absolute right-[-10px] sm:right-auto sm:left-[-120px] top-[calc(100%+14px)] w-[300px] sm:w-[340px] max-h-[80vh] sm:max-h-[480px] flex flex-col bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[100] origin-top-right sm:origin-top">
+        <motion.div
+            // EXACT FIX 2: Added Framer Motion for buttery smooth entry/exit
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95, transition: { duration: 0.15 } }}
+            transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+
+            // EXACT FIX 1: Mathematically secure positioning.
+            // Mobile (<768px): Anchors to the right edge (origin-top-right).
+            // Desktop (>=768px): Anchors to the left of the bell and grows into the empty chat space, completely preventing leaks!
+            className="absolute top-[calc(100%+14px)] right-[-10px] md:right-auto md:left-[-20px] w-[320px] sm:w-[360px] max-w-[calc(100vw-2rem)] max-h-[80vh] sm:max-h-[480px] flex flex-col bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-2xl shadow-[0_16px_40px_rgba(0,0,0,0.6)] ring-1 ring-black/5 dark:ring-white/10 overflow-hidden z-[100] origin-top-right md:origin-top-left"
+        >
             {/* Header */}
             <div className="px-4 py-3.5 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 bg-[var(--bg-surface)] shadow-sm z-10">
                 <div className="flex items-center space-x-2 min-w-0 pr-2">
@@ -101,7 +115,7 @@ const NotificationPanel = ({ onClose, onNavigate, onMarkAllRead }) => {
                     </div>
                 )}
             </div>
-        </div>
+        </motion.div>
     );
 };
 

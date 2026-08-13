@@ -5,6 +5,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 // Third Party Libraries
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase/firestore';
+import { AnimatePresence } from 'framer-motion';
 
 // Context & Hooks
 import { ThemeContext } from '../context/ThemeContext';
@@ -59,7 +60,6 @@ export const MainAppLayout = () => {
         startConversation,
     } = useConversations() || {};
 
-    // EXACT FIX: Pass activeConversationId to useNotifications for intercepting
     const {
         notifications,
         unreadCount,
@@ -225,7 +225,6 @@ export const MainAppLayout = () => {
                 />
             )}
 
-            {/* EXACT FIX (Bug 6): 'fixed md:relative' cleanly strips sidebar from mobile layout constraints ensuring ChatRoom spans 100vw */}
             <aside className={`fixed md:relative inset-y-0 left-0 z-50 w-[85%] max-w-[336px] md:w-[336px] md:min-w-[336px] bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col shrink-0 transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
 
                 <div className="h-[72px] px-5 border-b border-[var(--border-color)] flex items-center justify-between shrink-0 bg-[var(--bg-surface)] backdrop-blur-md relative z-[60] overflow-visible">
@@ -250,16 +249,18 @@ export const MainAppLayout = () => {
                                     setIsNotificationPanelOpen((prev) => !prev);
                                 }}
                             />
-                            {isNotificationPanelOpen && (
-                                <NotificationPanel
-                                    notifications={notifications}
-                                    unreadCount={unreadCount}
-                                    onClose={() => setIsNotificationPanelOpen(false)}
-                                    onNavigate={handleNotificationNavigate}
-                                    onDelete={deleteNotification}
-                                    onMarkAllRead={handleMarkAllNotificationsRead}
-                                />
-                            )}
+                            <AnimatePresence>
+                                {isNotificationPanelOpen && (
+                                    <NotificationPanel
+                                        notifications={notifications}
+                                        unreadCount={unreadCount}
+                                        onClose={() => setIsNotificationPanelOpen(false)}
+                                        onNavigate={handleNotificationNavigate}
+                                        onDelete={deleteNotification}
+                                        onMarkAllRead={handleMarkAllNotificationsRead}
+                                    />
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         <div className="md:hidden">
@@ -271,17 +272,6 @@ export const MainAppLayout = () => {
                         </div>
                     </div>
                 </div>
-
-                {isNotificationPanelOpen && (
-                    <div
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsNotificationPanelOpen(false);
-                        }}
-                        className="absolute left-0 right-0 bottom-0 top-[72px] bg-black/40 dark:bg-black/60 backdrop-blur-[3px] z-50 transition-opacity duration-300 cursor-pointer hidden md:block"
-                        aria-hidden="true"
-                    />
-                )}
 
                 <div className="p-3.5 border-b border-[var(--border-color)] shrink-0 relative z-20">
                     <div className="relative flex items-center">
@@ -497,16 +487,18 @@ export const MainAppLayout = () => {
                                     setIsNotificationPanelOpen((prev) => !prev);
                                 }}
                             />
-                            {isNotificationPanelOpen && (
-                                <NotificationPanel
-                                    notifications={notifications}
-                                    unreadCount={unreadCount}
-                                    onClose={() => setIsNotificationPanelOpen(false)}
-                                    onNavigate={handleNotificationNavigate}
-                                    onDelete={deleteNotification}
-                                    onMarkAllRead={handleMarkAllNotificationsRead}
-                                />
-                            )}
+                            <AnimatePresence>
+                                {isNotificationPanelOpen && (
+                                    <NotificationPanel
+                                        notifications={notifications}
+                                        unreadCount={unreadCount}
+                                        onClose={() => setIsNotificationPanelOpen(false)}
+                                        onNavigate={handleNotificationNavigate}
+                                        onDelete={deleteNotification}
+                                        onMarkAllRead={handleMarkAllNotificationsRead}
+                                    />
+                                )}
+                            </AnimatePresence>
                         </div>
 
                         <Avatar
@@ -515,29 +507,16 @@ export const MainAppLayout = () => {
                             size="sm"
                             isOnline={myOnlineStatusEnabled ? (user?.isOnline ?? true) : false}
                         />
-                        <IconButton onClick={handleLogout} title="Sign Out" variant="danger" size="sm">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                        </IconButton>
                     </div>
                 </header>
 
-                {isNotificationPanelOpen && (
-                    <div
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsNotificationPanelOpen(false);
-                        }}
-                        className="fixed inset-0 top-[56px] bg-black/40 backdrop-blur-[2px] z-40 md:hidden cursor-pointer"
-                        aria-hidden="true"
-                    />
-                )}
-
                 <main className="flex-1 flex flex-col min-h-0 relative h-full z-10">
-                    {selectedPreviewUser && (
-                        <ProfilePreviewModal targetUser={selectedPreviewUser} onClose={() => setSelectedPreviewUser(null)} onStartChat={handleStartChatFromProfile} />
-                    )}
+                    {/* EXACT FIX 1: AnimatePresence Wrapper allows the ProfilePreviewModal to gracefully exit */}
+                    <AnimatePresence>
+                        {selectedPreviewUser && (
+                            <ProfilePreviewModal targetUser={selectedPreviewUser} onClose={() => setSelectedPreviewUser(null)} onStartChat={handleStartChatFromProfile} />
+                        )}
+                    </AnimatePresence>
 
                     <Outlet
                         context={{

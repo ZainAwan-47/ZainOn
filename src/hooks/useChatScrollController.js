@@ -11,6 +11,10 @@ export const useChatScrollController = ({
 }) => {
     const chatContainerRef = useRef(null);
 
+    // --- THE "INIT SHIELD" ARCHITECTURE ---
+    const activeChatIdRef = useRef(conversationId);
+    const initLockRef = useRef(true);
+
     const distanceFromBottomRef = useRef(0);
     const isProgrammaticScrollRef = useRef(false);
     const scrollTimeoutRef = useRef(null);
@@ -23,15 +27,27 @@ export const useChatScrollController = ({
 
     const [showBottomNavigator, setShowBottomNavigator] = useState(false);
 
-    useEffect(() => {
-        prevMessageIdsRef.current = new Set();
-        setShowBottomNavigator(false);
-        distanceFromBottomRef.current = 0;
-        isProgrammaticScrollRef.current = false;
-        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-        if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
-        seenInFlightRef.current.clear();
-        deliveredInFlightRef.current.clear();
+    // 1. HARD RESET SHIELD ON CHAT SWITCH / REOPEN
+    useLayoutEffect(() => {
+        if (activeChatIdRef.current !== conversationId) {
+            activeChatIdRef.current = conversationId;
+            initLockRef.current = true; // Shield Activated: Block all rogue browser scroll events
+
+            distanceFromBottomRef.current = 0;
+            prevMessageIdsRef.current = new Set();
+            setShowBottomNavigator(false);
+            isProgrammaticScrollRef.current = false;
+
+            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+            if (scrollAnimationRef.current) cancelAnimationFrame(scrollAnimationRef.current);
+
+            seenInFlightRef.current.clear();
+            deliveredInFlightRef.current.clear();
+
+            // Instantly snap to bottom to destroy any leftover physical scroll state from previous chats
+            const container = chatContainerRef.current;
+            if (container) container.scrollTop = container.scrollHeight;
+        }
     }, [conversationId]);
 
     const processAcknowledgements = useCallback(() => {
@@ -76,7 +92,7 @@ export const useChatScrollController = ({
         processAcknowledgements();
     }, [messages, processAcknowledgements]);
 
-    // THE PREMIUM SCROLL FIX: Syncs perfectly with the Framer Motion airy spring.
+    // PRESERVED: Your exact airy smooth scroll physics
     const performScrollToBottom = useCallback((instant = false) => {
         const container = chatContainerRef.current;
         if (!container) return;
@@ -96,11 +112,8 @@ export const useChatScrollController = ({
 
         const startTop = container.scrollTop;
         let startTime = null;
-
-        // Extended duration to 450ms to perfectly match the soft, floating tail of the new spring physics
         const duration = 450;
 
-        // Premium "Airy" Ease-Out-Quint curve: Fast liftoff, extremely soft and weightless landing
         const airyEase = (t) => 1 - Math.pow(1 - t, 5);
 
         const animateScroll = (timestamp) => {
@@ -108,7 +121,6 @@ export const useChatScrollController = ({
             const progress = Math.min((timestamp - startTime) / duration, 1);
             const ease = airyEase(progress);
 
-            // Fetch target iteratively so it adapts dynamically if the DOM height changes mid-animation
             const targetTop = container.scrollHeight - container.clientHeight;
             const distance = targetTop - startTop;
 
@@ -129,6 +141,9 @@ export const useChatScrollController = ({
     }, [processAcknowledgements]);
 
     const handleScroll = useCallback(() => {
+        // EXACT FIX: Ignore absolutely all manual scroll events if the chat is switching/initializing!
+        if (initLockRef.current) return;
+
         const container = chatContainerRef.current;
         if (!container) return;
 
@@ -148,6 +163,7 @@ export const useChatScrollController = ({
         if (!container) return;
 
         const handleUserInteraction = () => {
+            if (initLockRef.current) return; // Prevent user interference during init shield
             if (isProgrammaticScrollRef.current) {
                 isProgrammaticScrollRef.current = false;
                 if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -167,14 +183,16 @@ export const useChatScrollController = ({
         };
     }, [handleScroll]);
 
+    // THE RESIZE FIX: Catching image pop-ins safely
     useEffect(() => {
         const container = chatContainerRef.current;
         if (!container) return;
 
         const resizeObserver = new ResizeObserver(() => {
-            if (!isProgrammaticScrollRef.current && distanceFromBottomRef.current <= 60) {
+            // If the shield is active, OR we are legitimately at the bottom, pin it!
+            if (initLockRef.current || (!isProgrammaticScrollRef.current && distanceFromBottomRef.current <= 60)) {
                 container.scrollTop = container.scrollHeight;
-                distanceFromBottomRef.current = 0;
+                if (!initLockRef.current) distanceFromBottomRef.current = 0;
             }
         });
 
@@ -189,12 +207,19 @@ export const useChatScrollController = ({
         const currentIds = new Set(messages.map(m => m.id));
         const prevIds = prevMessageIdsRef.current;
 
-        if (prevIds.size === 0) {
+        // EXACT FIX: FIRST RENDER FOR THIS SPECIFIC CHAT
+        if (initLockRef.current || prevIds.size === 0) {
             performScrollToBottom(true);
             prevMessageIdsRef.current = currentIds;
+
+            // Drop the shield after 150ms. This gives images and DOM exact time to settle.
+            setTimeout(() => {
+                initLockRef.current = false;
+            }, 150);
             return;
         }
 
+        // PRESERVED: Your exact threshold logic!
         const newMessages = messages.filter(m => !prevIds.has(m.id));
 
         if (newMessages.length > 0) {

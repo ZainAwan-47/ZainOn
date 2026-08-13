@@ -6,8 +6,6 @@ import { conversationService } from '../services/conversationService';
 import { useAuth } from './useAuth';
 import { useToast } from '../context/ToastContext';
 
-const ACTIVE_CONV_STORAGE_KEY = 'zainon_active_conversation_id';
-
 export const useConversations = () => {
     const { user } = useAuth();
     const { showToast } = useToast();
@@ -15,19 +13,9 @@ export const useConversations = () => {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Initialize active conversation ID from localStorage
-    const [activeConversationId, setActiveConversationIdState] = useState(() => {
-        return localStorage.getItem(ACTIVE_CONV_STORAGE_KEY) || null;
-    });
-
-    const setActiveConversationId = useCallback((id) => {
-        setActiveConversationIdState(id);
-        if (id) {
-            localStorage.setItem(ACTIVE_CONV_STORAGE_KEY, id);
-        } else {
-            localStorage.removeItem(ACTIVE_CONV_STORAGE_KEY);
-        }
-    }, []);
+    // EXACT FIX 1: Removed localStorage completely.
+    // Now on every refresh, the active chat is null by default, showing the clean placeholder screen.
+    const [activeConversationId, setActiveConversationId] = useState(null);
 
     useEffect(() => {
         if (!user?.uid) {
@@ -40,12 +28,9 @@ export const useConversations = () => {
         const unsub = conversationService.subscribeToUserConversations(
             user.uid,
             (data) => {
-                // FIX: Intercept data and enforce strict local sorting.
-                // Firebase optimistic updates return null for serverTimestamp() initially.
-                // We treat null as Date.now() so the chat stays pinned to the top instantly.
                 const sortedData = [...data].sort((a, b) => {
                     const getMillis = (ts) => {
-                        if (!ts) return Date.now(); // Pending optimistic update = happens right now
+                        if (!ts) return Date.now();
                         if (typeof ts.toMillis === 'function') return ts.toMillis();
                         if (ts instanceof Date) return ts.getTime();
                         return 0;
@@ -76,7 +61,7 @@ export const useConversations = () => {
                 return null;
             }
         },
-        [user, setActiveConversationId, showToast]
+        [user, showToast]
     );
 
     return {

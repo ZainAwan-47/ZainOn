@@ -138,16 +138,20 @@ export const SeenByModal = memo(({ message, participants = {}, onClose }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 select-none"
+            transition={{ duration: 0.2 }}
+            // EXACT FIX: Bottom Sheet alignment for Mobile, Centered for Desktop. 0 Blur!
+            className="absolute inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4 select-none"
             onClick={onClose}
         >
             <motion.div
+                // Slide up from bottom smoothly
                 initial={{ opacity: 0, y: 100 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 100 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full sm:w-[320px] max-h-[70vh] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative"
+                // EXACT FIX: Smart Border Radius & Width based on device layout
+                className="w-full sm:w-[320px] max-h-[70vh] bg-[var(--bg-surface)] border-t sm:border border-[var(--border-color)] rounded-t-3xl sm:rounded-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] sm:shadow-2xl flex flex-col overflow-hidden relative"
             >
                 <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)] shrink-0">
                     <h3 className="text-sm font-bold text-[var(--text-primary)] tracking-tight">Message Info</h3>
