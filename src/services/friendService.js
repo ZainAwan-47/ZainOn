@@ -110,6 +110,21 @@ export const friendService = {
             const requestId = friendService.getRequestDocId(senderUid, receiverUid);
             const requestRef = doc(db, 'friendRequests', requestId);
             await deleteDoc(requestRef);
+
+            // Clean up stale incoming notification for receiver
+            try {
+                const notifsQuery = query(
+                    collection(db, 'users', receiverUid, 'notifications'),
+                    where('type', '==', 'friend_request'),
+                    where('actorId', '==', senderUid)
+                );
+                const notifsSnap = await getDocs(notifsQuery);
+                const batch = writeBatch(db);
+                notifsSnap.forEach((nDoc) => batch.delete(nDoc.ref));
+                await batch.commit();
+            } catch (cleanupErr) {
+                console.warn('[cancelFriendRequest notification cleanup failed]:', cleanupErr);
+            }
         } catch (error) {
             console.error('[friendService.cancelFriendRequest]:', error);
             throw error;
@@ -138,7 +153,22 @@ export const friendService = {
 
             await batch.commit();
 
-            // Emit notification for friend request accepted
+            // BUG #1 FIX: Clean up stale pending friend_request notification for the receiver (accepting user)
+            try {
+                const pendingNotifsQuery = query(
+                    collection(db, 'users', receiverUid, 'notifications'),
+                    where('type', '==', 'friend_request'),
+                    where('actorId', '==', senderUid)
+                );
+                const pendingSnap = await getDocs(pendingNotifsQuery);
+                const cleanBatch = writeBatch(db);
+                pendingSnap.forEach((nDoc) => cleanBatch.delete(nDoc.ref));
+                await cleanBatch.commit();
+            } catch (cleanErr) {
+                console.warn('[acceptFriendRequest stale notification cleanup failed]:', cleanErr);
+            }
+
+            // Emit notification for friend_accepted to the requester (senderUid)
             try {
                 const receiverUserDoc = await getDoc(doc(db, 'users', receiverUid));
                 const receiverUserData = receiverUserDoc.exists() ? receiverUserDoc.data() : {};
@@ -176,7 +206,18 @@ export const friendService = {
                     createdAt: serverTimestamp(),
                 });
 
-                // Emit notification for friend request accepted (fallback path)
+                // Clean stale request notification
+                try {
+                    const pendingNotifsQuery = query(
+                        collection(db, 'users', receiverUid, 'notifications'),
+                        where('type', '==', 'friend_request'),
+                        where('actorId', '==', senderUid)
+                    );
+                    const pendingSnap = await getDocs(pendingNotifsQuery);
+                    pendingSnap.forEach(async (nDoc) => await deleteDoc(nDoc.ref));
+                } catch (e) { }
+
+                // Emit friend_accepted notification
                 try {
                     const receiverUserDoc = await getDoc(doc(db, 'users', receiverUid));
                     const receiverUserData = receiverUserDoc.exists() ? receiverUserDoc.data() : {};
@@ -203,11 +244,56 @@ export const friendService = {
         }
     },
 
-    declineFriendRequest: async (requestId) => {
+    declineFriendRequest: async (requestId, currentUid = null) => {
         if (!requestId) return;
         try {
+            // Fetch request doc first to know sender and receiver before deleting
             const requestRef = doc(db, 'friendRequests', requestId);
+            const reqSnap = await getDoc(requestRef);
+            const reqData = reqSnap.exists() ? reqSnap.data() : null;
+
             await deleteDoc(requestRef);
+
+            if (reqData) {
+                const senderUid = reqData.senderUid;
+                const receiverUid = reqData.receiverUid;
+
+                // 1. Clean up pending friend_request notification for receiver
+                try {
+                    const pendingNotifsQuery = query(
+                        collection(db, 'users', receiverUid, 'notifications'),
+                        where('type', '==', 'friend_request'),
+                        where('actorId', '==', senderUid)
+                    );
+                    const pendingSnap = await getDocs(pendingNotifsQuery);
+                    const batch = writeBatch(db);
+                    pendingSnap.forEach((nDoc) => batch.delete(nDoc.ref));
+                    await batch.commit();
+                } catch (cleanErr) {
+                    console.warn('[declineFriendRequest notification cleanup failed]:', cleanErr);
+                }
+
+                // 2. BUG #1 FIX: Emit friend_rejected notification to the original sender
+                try {
+                    const receiverUserDoc = await getDoc(doc(db, 'users', receiverUid));
+                    const receiverUserData = receiverUserDoc.exists() ? receiverUserDoc.data() : {};
+                    const notifRef = doc(collection(db, 'users', senderUid, 'notifications'));
+                    await setDoc(notifRef, {
+                        id: notifRef.id,
+                        type: 'friend_rejected',
+                        title: 'Friend Request Declined',
+                        body: `${receiverUserData.fullName || 'Someone'} declined your friend request.`,
+                        read: false,
+                        actorId: receiverUid,
+                        actorName: receiverUserData.fullName || 'User',
+                        actorPhotoURL: receiverUserData.photoURL || '',
+                        targetId: receiverUid,
+                        createdAt: serverTimestamp(),
+                    });
+                } catch (notifErr) {
+                    console.warn('[declineFriendRequest rejection notification failed]:', notifErr);
+                }
+            }
         } catch (error) {
             console.error('[friendService.declineFriendRequest]:', error);
             throw error;
@@ -267,7 +353,6 @@ export const friendService = {
                                 const data = userSnap.data();
                                 const privacy = data.privacy || {};
 
-                                // Realtime privacy evaluation for friend presence
                                 const onlineStatusVal = privacy.onlineStatus;
                                 const onlineStatusEnabled = onlineStatusVal !== false && onlineStatusVal !== 'nobody';
 

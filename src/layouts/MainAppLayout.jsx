@@ -60,6 +60,7 @@ export const MainAppLayout = () => {
         conversations = [],
         activeConversationId,
         setActiveConversationId,
+        closeActiveConversation,
         loading: conversationsLoading,
         startConversation,
     } = useConversations() || {};
@@ -142,7 +143,7 @@ export const MainAppLayout = () => {
 
     const handleDeleteConversation = (deletedId) => {
         if (deletedId === activeConversationId) {
-            setActiveConversationId(null);
+            closeActiveConversation();
         }
     };
 
@@ -307,10 +308,10 @@ export const MainAppLayout = () => {
 
                     {!isSearchActive && (
                         <div className="px-2 py-2 flex items-center space-x-1 border-b border-[var(--border-color)] shrink-0 bg-[var(--bg-surface)] relative z-20">
-                            <button type="button" onClick={() => setActiveTab('chats')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'chats' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Chats</button>
-                            <button type="button" onClick={() => setActiveTab('groups')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'groups' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Groups</button>
-                            <button type="button" onClick={() => setActiveTab('friends')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'friends' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Friends</button>
-                            <button type="button" onClick={() => setActiveTab('requests')} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all relative cursor-pointer ${activeTab === 'requests' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>
+                            <button type="button" onClick={() => { setActiveTab('chats'); closeActiveConversation(); }} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'chats' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Chats</button>
+                            <button type="button" onClick={() => { setActiveTab('groups'); closeActiveConversation(); }} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'groups' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Groups</button>
+                            <button type="button" onClick={() => { setActiveTab('friends'); closeActiveConversation(); }} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeTab === 'friends' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>Friends</button>
+                            <button type="button" onClick={() => { setActiveTab('requests'); closeActiveConversation(); }} className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold transition-all relative cursor-pointer ${activeTab === 'requests' ? 'bg-[var(--bg-surface-hover)] text-[var(--color-primary)] ring-1 ring-[var(--border-color)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]/60'}`}>
                                 Req
                                 {(incomingRequests?.length || 0) > 0 && (
                                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--color-primary)] text-[9px] text-white font-extrabold flex items-center justify-center shadow-md animate-pulse">
@@ -372,8 +373,8 @@ export const MainAppLayout = () => {
 
                     <div className="px-3.5 py-2 flex items-center space-x-1 bg-[var(--bg-surface)] border-t border-[var(--border-color)] shrink-0 relative z-20">
                         <NavLink to="/chat" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Chat</NavLink>
-                        <NavLink to="/profile" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Profile</NavLink>
-                        <NavLink to="/settings" onClick={closeMobileMenu} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Settings</NavLink>
+                        <NavLink to="/profile" onClick={() => { closeMobileMenu(); closeActiveConversation(); }} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Profile</NavLink>
+                        <NavLink to="/settings" onClick={() => { closeMobileMenu(); closeActiveConversation(); }} className={({ isActive }) => `flex-1 text-center py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${isActive ? 'text-[var(--color-primary)] bg-[var(--bg-surface-hover)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>Settings</NavLink>
                     </div>
 
                     <div className="h-[72px] px-4 border-t border-[var(--border-color)] bg-[var(--bg-surface)]/95 backdrop-blur-md flex items-center justify-between shrink-0 relative z-20">
@@ -518,6 +519,7 @@ export const MainAppLayout = () => {
                                 conversations,
                                 activeConversationId,
                                 setActiveConversationId,
+                                closeActiveConversation,
                                 conversationsLoading,
                                 startConversation,
                                 setSelectedPreviewUser: handleViewProfile,

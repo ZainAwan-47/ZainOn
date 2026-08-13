@@ -32,9 +32,7 @@ export const useMessages = (conversationId, recipientUid) => {
         return () => unsubscribe();
     }, [conversationId, user?.uid]);
 
-    // EXACT FIX: Forwarding ALL 4 arguments (including clientMessageId).
-    // This perfectly merges optimistic messages with real Firestore messages, 
-    // permanently eliminating Grey Duplicates and unwanted drag-up scrolls.
+    // Forwarding conversationId as activeConversationId to prevent notifications when the chat is open
     const sendMessage = useCallback(
         async (text, replyTo = null, isFriend = true, clientMessageId = null) => {
             if (!conversationId || !user?.uid || !text.trim()) return;
@@ -46,7 +44,9 @@ export const useMessages = (conversationId, recipientUid) => {
                     recipientUid,
                     replyTo,
                     isFriend,
-                    clientMessageId
+                    clientMessageId,
+                    {},
+                    conversationId // Pass activeConversationId here to suppress notifications for active chat
                 );
             } catch (error) {
                 console.error('[useMessages.sendMessage]:', error);

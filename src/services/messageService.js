@@ -35,7 +35,7 @@ export const messageService = {
         replyTo = null,
         isFriend = true,
         clientMessageId = null,
-        extraData = {} // Added extraData to support call logs
+        extraData = {}
     ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
@@ -68,11 +68,10 @@ export const messageService = {
                 deletedFor: {},
                 deletedForEveryone: false,
                 replyTo: null,
-                ...extraData // Spreads isCallLog, callType, etc.
+                ...extraData
             };
 
             batch.set(newMessageRef, messageData);
-            // ... rest of sendMessage remains unchanged
 
             const convRef = doc(db, 'conversations', conversationId);
             const convUpdateData = {
@@ -116,7 +115,7 @@ export const messageService = {
             batch.update(convRef, convUpdateData);
             await batch.commit();
 
-            // Emit notifications for inactive direct/group messages
+            // Emit notifications only for recipients who do NOT currently have this conversation open
             try {
                 const senderDoc = await getDoc(doc(db, 'users', senderId));
                 const senderData = senderDoc.exists() ? senderDoc.data() : {};
@@ -125,6 +124,15 @@ export const messageService = {
 
                 for (const recId of recipientsToNotify) {
                     if (recId === senderId) continue;
+
+                    // Check recipient's active conversation in Firestore
+                    const recipientUserDoc = await getDoc(doc(db, 'users', recId));
+                    const recipientUserData = recipientUserDoc.exists() ? recipientUserDoc.data() : {};
+
+                    if (recipientUserData.activeConversationId === conversationId) {
+                        // Recipient is currently inside this chat! Suppress notification creation.
+                        continue;
+                    }
 
                     const isDirect = Boolean(recipientId);
                     const notifType = isDirect ? 'direct_message' : 'group_message';

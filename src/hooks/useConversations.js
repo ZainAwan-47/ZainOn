@@ -1,5 +1,7 @@
 // React
 import { useState, useEffect, useCallback } from 'react';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase/firestore';
 
 // Services & Hooks
 import { conversationService } from '../services/conversationService';
@@ -13,9 +15,18 @@ export const useConversations = () => {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // EXACT FIX 1: Removed localStorage completely.
-    // Now on every refresh, the active chat is null by default, showing the clean placeholder screen.
     const [activeConversationId, setActiveConversationId] = useState(null);
+
+    // Sync activeConversationId to user's Firestore document for cross-client notification suppression
+    useEffect(() => {
+        if (!user?.uid) return;
+        const userRef = doc(db, 'users', user.uid);
+        updateDoc(userRef, {
+            activeConversationId: activeConversationId || null
+        }).catch(() => {
+            setDoc(userRef, { activeConversationId: activeConversationId || null }, { merge: true }).catch(() => { });
+        });
+    }, [user?.uid, activeConversationId]);
 
     useEffect(() => {
         if (!user?.uid) {
@@ -64,10 +75,15 @@ export const useConversations = () => {
         [user, showToast]
     );
 
+    const closeActiveConversation = useCallback(() => {
+        setActiveConversationId(null);
+    }, []);
+
     return {
         conversations,
         activeConversationId,
         setActiveConversationId,
+        closeActiveConversation,
         loading,
         startConversation,
     };

@@ -15,7 +15,7 @@ export const useNotifications = (activeConversationId = null) => {
         activeChatRef.current = activeConversationId;
     }, [activeConversationId]);
 
-    // 1. Subscription Effect (Listens for incoming)
+    // Subscription Effect: Listens for incoming notifications and filters out active open chats in-memory
     useEffect(() => {
         if (!currentUid) {
             setNotifications([]);
@@ -33,12 +33,10 @@ export const useNotifications = (activeConversationId = null) => {
                 const filtered = data.filter((n) => {
                     const isChatMsg = n.type === 'direct_message' || n.type === 'group_message';
                     if (isChatMsg && n.targetId === activeChatRef.current) {
-                        notificationService.deleteNotification(currentUid, n.id).catch(() => { });
                         return false;
                     }
                     return true;
                 });
-
                 setNotifications(filtered);
                 setLoading(false);
             },
@@ -50,8 +48,7 @@ export const useNotifications = (activeConversationId = null) => {
         };
     }, [currentUid]);
 
-    // EXACT FIX 1: The Sweeper Effect. 
-    // Instantly wipes existing unread notifications when a user opens that specific chat.
+    // Sweeper Effect: Permanently deletes existing chat notifications when that conversation is opened
     useEffect(() => {
         if (!activeConversationId || !currentUid || notifications.length === 0) return;
 
@@ -61,9 +58,6 @@ export const useNotifications = (activeConversationId = null) => {
         );
 
         if (toClear.length > 0) {
-            // Remove from UI instantly for snappy feel
-            setNotifications(prev => prev.filter(n => !toClear.includes(n)));
-            // Wipe from DB in background
             toClear.forEach(n => {
                 notificationService.deleteNotification(currentUid, n.id).catch(() => { });
             });

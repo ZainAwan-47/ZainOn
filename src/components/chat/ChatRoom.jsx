@@ -1,6 +1,7 @@
 // React
 import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useOutletContext } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
 import { messageService } from '../../services/messageService';
@@ -19,6 +20,21 @@ import DeleteMessageModal from './DeleteMessageModal';
 
 export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
     const { user } = useAuth();
+    const outletContext = useOutletContext() || {};
+    const { setActiveConversationId } = outletContext;
+
+    // Ensure active conversation ID syncs correctly on mount
+    useEffect(() => {
+        if (conversation?.id && setActiveConversationId) {
+            setActiveConversationId(conversation.id);
+        }
+        return () => {
+            // Clean up / reset active conversation ID when ChatRoom unmounts or closes
+            if (setActiveConversationId) {
+                setActiveConversationId(null);
+            }
+        };
+    }, [conversation?.id, setActiveConversationId]);
 
     const isGroup = conversation?.type === 'group';
     const otherParticipant = conversation?.otherParticipant || {};
@@ -431,7 +447,10 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                 pinnedMessage={conversation.pinnedMessage}
                 onUnpin={handleUnpinHeader}
                 onViewProfile={handleProfileViewTrigger}
-                onCloseChat={onCloseChat}
+                onCloseChat={() => {
+                    if (setActiveConversationId) setActiveConversationId(null);
+                    if (onCloseChat) onCloseChat();
+                }}
                 onOpenSearch={() => setShowInlineSearch(true)}
                 onEnableMultiSelect={() => {
                     setIsMultiSelectMode(true);
