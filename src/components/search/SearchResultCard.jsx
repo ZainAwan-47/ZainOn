@@ -6,6 +6,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { friendService } from '../../services/friendService';
+import { permissionUtils } from '../../utils/permissionUtils';
 
 // Components
 import Avatar from '../ui/Avatar';
@@ -19,6 +20,8 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
     const [friendshipStatus, setFriendshipStatus] = useState('NOT_FRIENDS');
     const [activeRequestMeta, setActiveRequestMeta] = useState(null);
     const [isFoF, setIsFoF] = useState(false);
+
+    const isFriend = friendshipStatus === 'FRIENDS';
 
     // Live Snapshot Listener for Target User (Reacts to privacy changes instantly)
     useEffect(() => {
@@ -85,6 +88,13 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
         }
     };
 
+    // Issue 4 Fixed: Strangers NEVER see presence data in search cards
+    const onlineStatusEnabled = permissionUtils.canViewPresence(currentUser?.uid, liveTargetUser, isFriend);
+    const isOnlineEffective = onlineStatusEnabled ? liveTargetUser.isOnline : false;
+
+    const canSeeLastSeen = permissionUtils.canViewLastSeen(currentUser?.uid, liveTargetUser, isFriend);
+    const lastSeenEffective = canSeeLastSeen ? liveTargetUser.lastSeen : null;
+
     return (
         <div
             onClick={() => onViewProfile && onViewProfile(liveTargetUser)}
@@ -95,7 +105,7 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
                     src={liveTargetUser.photoURL}
                     name={liveTargetUser.fullName}
                     size="md"
-                    isOnline={liveTargetUser.privacy?.onlineStatus !== false ? liveTargetUser.isOnline : false}
+                    isOnline={isOnlineEffective}
                 />
 
                 <div className="flex flex-col min-w-0 flex-1">
@@ -114,10 +124,10 @@ export const SearchResultCard = ({ user: targetUser, onViewProfile }) => {
 
                     <div className="mt-1">
                         <PresenceIndicator
-                            isOnline={liveTargetUser.isOnline}
-                            lastSeen={liveTargetUser.privacy?.lastSeen === 'nobody' ? null : liveTargetUser.lastSeen}
+                            isOnline={isOnlineEffective}
+                            lastSeen={lastSeenEffective}
                             size="sm"
-                            onlineStatusEnabled={liveTargetUser.privacy?.onlineStatus !== false}
+                            onlineStatusEnabled={onlineStatusEnabled}
                         />
                     </div>
                 </div>

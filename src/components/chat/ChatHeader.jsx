@@ -9,6 +9,7 @@ import { db } from '../../firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { friendService } from '../../services/friendService';
 import { useToast } from '../../context/ToastContext';
+import { permissionUtils } from '../../utils/permissionUtils';
 
 // Context
 import { CallContext } from '../../context/CallContext';
@@ -58,13 +59,20 @@ export const ChatHeader = memo(({
     };
 
     const [liveParticipant, setLiveParticipant] = useState(resolveInitialParticipant);
-    const [isFriend, setIsFriend] = useState(true);
+    // Three-state friendship lifecycle: null = unresolved, true = friend, false = stranger
+    const [isFriend, setIsFriend] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
+    // Keep liveParticipant synchronized when conversation or props change
     useEffect(() => {
         const resolved = resolveInitialParticipant();
-        if (resolved) setLiveParticipant(resolved);
+        if (resolved) {
+            setLiveParticipant((prev) => ({
+                ...prev,
+                ...resolved
+            }));
+        }
     }, [conversation, participant, user?.uid]);
 
     useEffect(() => {
@@ -77,21 +85,34 @@ export const ChatHeader = memo(({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Realtime snapshot listener for the target user to capture privacy / online / lastSeen updates instantly
     useEffect(() => {
-        if (isGroup || !liveParticipant?.uid) return;
-        const unsub = onSnapshot(doc(db, 'users', liveParticipant.uid), (docSnap) => {
+        const targetUid = liveParticipant?.uid || (isGroup ? null : resolveInitialParticipant()?.uid);
+        if (isGroup || !targetUid) return;
+
+        const unsub = onSnapshot(doc(db, 'users', targetUid), (docSnap) => {
             if (docSnap.exists()) {
-                setLiveParticipant({ uid: docSnap.id, ...docSnap.data() });
+                const userData = docSnap.data();
+                setLiveParticipant((prev) => ({
+                    ...(prev || {}),
+                    uid: docSnap.id,
+                    ...userData,
+                    // Ensure privacy object is correctly merged and preserved
+                    privacy: userData.privacy || prev?.privacy || {}
+                }));
             }
         });
         return () => unsub();
     }, [isGroup, liveParticipant?.uid]);
 
+    // Realtime subscription for friendship status
     useEffect(() => {
-        if (isGroup || !user?.uid || !liveParticipant?.uid) return;
+        const targetUid = liveParticipant?.uid || (isGroup ? null : resolveInitialParticipant()?.uid);
+        if (isGroup || !user?.uid || !targetUid) return;
+
         const unsub = friendService.subscribeToFriendshipStatus(
             user.uid,
-            liveParticipant.uid,
+            targetUid,
             (status) => {
                 setIsFriend(status === 'FRIENDS');
             }
@@ -101,25 +122,20 @@ export const ChatHeader = memo(({
 
     if (!isGroup && !liveParticipant) return null;
 
-    const onlineStatusEnabled = liveParticipant?.privacy?.onlineStatus !== false;
-    const isOnlineEffective = onlineStatusEnabled ? liveParticipant?.isOnline : false;
+    // Use permissionUtils for presence and last seen validation (handles null/unresolved safely via fail-closed logic)
+    const onlineStatusEnabled = permissionUtils.canViewPresence(user?.uid, liveParticipant, isFriend);
+    const isOnlineEffective = onlineStatusEnabled ? Boolean(liveParticipant?.isOnline) : false;
 
-    const lastSeenSetting = liveParticipant?.privacy?.lastSeen || 'everyone';
-    let lastSeenEffective = liveParticipant?.lastSeen;
-    if (lastSeenSetting === 'nobody') {
-        lastSeenEffective = null;
-    } else if (lastSeenSetting === 'friends' && !isFriend) {
-        lastSeenEffective = null;
-    }
+    const canSeeLastSeen = permissionUtils.canViewLastSeen(user?.uid, liveParticipant, isFriend);
+    const lastSeenEffective = canSeeLastSeen ? liveParticipant?.lastSeen || null : null;
 
     const handleAudioCall = () => {
         if (liveParticipant?.uid === user?.uid) {
-            console.error('[CALL ERROR] Attempted to call yourself!');
+            showToast('You cannot call yourself.', 'error');
             return;
         }
-        // EXACT FIX: Restrict calls to friends only
         if (!isFriend) {
-            showToast('Calls are only allowed with friends.', 'error');
+            showToast('Calls are only available with friends.', 'error');
             return;
         }
         if (startAudioCall) {
@@ -129,12 +145,11 @@ export const ChatHeader = memo(({
 
     const handleVideoCall = () => {
         if (liveParticipant?.uid === user?.uid) {
-            console.error('[CALL ERROR] Attempted to call yourself!');
+            showToast('You cannot call yourself.', 'error');
             return;
         }
-        // EXACT FIX: Restrict calls to friends only
         if (!isFriend) {
-            showToast('Calls are only allowed with friends.', 'error');
+            showToast('Calls are only available with friends.', 'error');
             return;
         }
         if (startVideoCall) {
@@ -202,7 +217,7 @@ export const ChatHeader = memo(({
                         <>
                             <IconButton onClick={handleAudioCall} title="Audio Call" size="sm">
                                 <svg className="w-5 h-5 text-[var(--text-secondary)] hover:text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1.498 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                 </svg>
                             </IconButton>
                             <IconButton onClick={handleVideoCall} title="Video Call" size="sm">
@@ -244,7 +259,7 @@ export const ChatHeader = memo(({
                                     className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] cursor-pointer"
                                 >
                                     <svg className="w-4 h-4 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2v00V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                     </svg>
                                     <span>Select Messages</span>
                                 </button>

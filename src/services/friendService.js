@@ -21,7 +21,7 @@ export const friendService = {
         return `${senderUid}_${receiverUid}`;
     },
 
-    // NEW: Deep backend check for Friends of Friends
+    // Deep backend check for Friends of Friends
     checkIsFriendOfFriend: async (uidA, uidB) => {
         if (!uidA || !uidB) return false;
         try {
@@ -266,6 +266,15 @@ export const friendService = {
                             if (userSnap.exists()) {
                                 const data = userSnap.data();
                                 const privacy = data.privacy || {};
+
+                                // Realtime privacy evaluation for friend presence
+                                const onlineStatusVal = privacy.onlineStatus;
+                                const onlineStatusEnabled = onlineStatusVal !== false && onlineStatusVal !== 'nobody';
+
+                                const lastSeenSetting = privacy.lastSeen || 'everyone';
+                                let resolvedLastSeen = data.lastSeen || null;
+                                if (lastSeenSetting === 'nobody') resolvedLastSeen = null;
+
                                 friendProfilesMap.set(friendUid, {
                                     uid: data.uid,
                                     fullName: data.fullName || 'User',
@@ -273,8 +282,8 @@ export const friendService = {
                                     photoURL: data.photoURL || '',
                                     bio: data.bio || '',
                                     status: data.status || '',
-                                    isOnline: privacy.onlineStatus === false ? false : Boolean(data.isOnline),
-                                    lastSeen: privacy.lastSeen === 'nobody' ? null : (data.lastSeen || null),
+                                    isOnline: onlineStatusEnabled ? Boolean(data.isOnline) : false,
+                                    lastSeen: resolvedLastSeen,
                                     privacy: privacy
                                 });
                             } else {

@@ -9,6 +9,7 @@ import { conversationService } from '../../services/conversationService';
 import Avatar from '../ui/Avatar';
 import DeleteChatModal from './DeleteChatModal';
 import { useToast } from '../../context/ToastContext';
+import { permissionUtils } from '../../utils/permissionUtils';
 
 export const ConversationItem = memo(({
     conversation,
@@ -38,7 +39,6 @@ export const ConversationItem = memo(({
         }
 
         const handleReadingState = (e) => {
-            // EXACT FIX (Bug 4): Strictly enforce ID matching so Chat A doesn't clear Chat B's badge.
             if (e.detail.conversationId === conversation.id) {
                 setHasNewMessagesBelow(e.detail.showBottomNavigator);
             }
@@ -48,7 +48,6 @@ export const ConversationItem = memo(({
         return () => window.removeEventListener('zainon_chat_reading_state', handleReadingState);
     }, [isActive, conversation.id]);
 
-    // Unconditionally suppress badge if the chat is actively open AND we aren't scrolled up
     const finalUnreadCount = isActive ? (hasNewMessagesBelow ? unreadCount : 0) : unreadCount;
 
     useEffect(() => {
@@ -100,7 +99,8 @@ export const ConversationItem = memo(({
     const displayName = isGroup ? conversation.name : (liveOtherUser.fullName || 'Direct Message');
     const displayAvatar = isGroup ? conversation.avatar : liveOtherUser.photoURL;
 
-    const onlineStatusEnabled = liveOtherUser.privacy?.onlineStatus !== false;
+    // Use permissionUtils for presence enforcement
+    const onlineStatusEnabled = permissionUtils.canViewPresence(user?.uid, liveOtherUser, isFriend);
     const displayOnline = isGroup ? false : (onlineStatusEnabled ? liveOtherUser.isOnline : false);
 
     const typingMap = conversation?.typing || {};

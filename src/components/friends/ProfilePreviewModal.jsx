@@ -10,6 +10,7 @@ import { db } from '../../firebase/firestore';
 import { friendService } from '../../services/friendService';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
+import { permissionUtils } from '../../utils/permissionUtils';
 
 // Context
 import { CallContext } from '../../context/CallContext';
@@ -52,24 +53,15 @@ export const ProfilePreviewModal = memo(({
         return () => unsub();
     }, [targetUser?.uid]);
 
-    // Respect target user's profileVisibility setting LIVE
-    const targetVisibility = liveTargetUser?.privacy?.profileVisibility || 'everyone';
-    let isRestricted = false;
-
-    if (targetVisibility === 'nobody') {
-        isRestricted = true;
-    } else if (targetVisibility === 'friends_of_friends' && !isFriend && !isFoF) {
-        isRestricted = true;
-    }
+    // Issue 3 Fixed: Profile visibility restricts strangers/discovery, but established friends ALWAYS retain access
+    const isRestricted = !permissionUtils.canViewProfile(user?.uid, liveTargetUser, isFriend, isFoF);
 
     useEffect(() => {
         if (!user?.uid || !liveTargetUser?.uid) return () => { };
 
         const checkFoF = async () => {
-            if (targetVisibility === 'friends_of_friends') {
-                const result = await friendService.checkIsFriendOfFriend(user.uid, liveTargetUser.uid);
-                setIsFoF(result);
-            }
+            const result = await friendService.checkIsFriendOfFriend(user.uid, liveTargetUser.uid);
+            setIsFoF(result);
         };
         checkFoF();
 
@@ -82,7 +74,7 @@ export const ProfilePreviewModal = memo(({
         );
 
         return () => unsub();
-    }, [user?.uid, liveTargetUser?.uid, targetVisibility]);
+    }, [user?.uid, liveTargetUser?.uid]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -118,37 +110,35 @@ export const ProfilePreviewModal = memo(({
     };
 
     const handleAudioCall = () => {
-        console.log('[CALL TRACE 1] ProfilePreview Audio Call Clicked. Target:', liveTargetUser);
+        if (!isFriend) {
+            showToast('Calls are only allowed with friends.', 'error');
+            return;
+        }
         if (startAudioCall) {
             startAudioCall(liveTargetUser);
             handleCloseModal();
-        } else {
-            console.error("[CALL TRACE ERROR] startAudioCall is missing from context.");
         }
     };
 
     const handleVideoCall = () => {
-        console.log('[CALL TRACE 1] ProfilePreview Video Call Clicked. Target:', liveTargetUser);
+        if (!isFriend) {
+            showToast('Calls are only allowed with friends.', 'error');
+            return;
+        }
         if (startVideoCall) {
             startVideoCall(liveTargetUser);
             handleCloseModal();
-        } else {
-            console.error("[CALL TRACE ERROR] startVideoCall is missing from context.");
         }
     };
 
     if (!liveTargetUser) return null;
 
-    const onlineStatusEnabled = liveTargetUser?.privacy?.onlineStatus !== false;
+    // Use permissionUtils for presence and last seen validation
+    const onlineStatusEnabled = permissionUtils.canViewPresence(user?.uid, liveTargetUser, isFriend);
     const isOnlineEffective = onlineStatusEnabled ? liveTargetUser.isOnline : false;
 
-    const lastSeenSetting = liveTargetUser?.privacy?.lastSeen || 'everyone';
-    let lastSeenEffective = liveTargetUser.lastSeen;
-    if (lastSeenSetting === 'nobody') {
-        lastSeenEffective = null;
-    } else if (lastSeenSetting === 'friends' && !isFriend) {
-        lastSeenEffective = null;
-    }
+    const canSeeLastSeen = permissionUtils.canViewLastSeen(user?.uid, liveTargetUser, isFriend);
+    const lastSeenEffective = canSeeLastSeen ? liveTargetUser.lastSeen : null;
 
     return (
         <motion.div
@@ -196,14 +186,12 @@ export const ProfilePreviewModal = memo(({
                         </span>
                     </div>
 
-                    {!isRestricted && (
-                        <PresenceIndicator
-                            isOnline={isOnlineEffective}
-                            lastSeen={lastSeenEffective}
-                            size="sm"
-                            onlineStatusEnabled={onlineStatusEnabled}
-                        />
-                    )}
+                    <PresenceIndicator
+                        isOnline={isOnlineEffective}
+                        lastSeen={lastSeenEffective}
+                        size="sm"
+                        onlineStatusEnabled={onlineStatusEnabled}
+                    />
                 </div>
 
                 <div className="bg-[var(--bg-main)] border border-[var(--border-color)] rounded-2xl p-3 sm:p-3.5 flex flex-col space-y-1 text-xs min-w-0">
@@ -242,7 +230,7 @@ export const ProfilePreviewModal = memo(({
                                     title="Audio Call"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1.498 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                     </svg>
                                 </button>
                                 <button

@@ -10,6 +10,7 @@ import { callService } from '../services/callService';
 import { messageService } from '../services/messageService';
 import { WebRTCService } from '../features/calls/services/webrtcService';
 import { CallContext } from '../context/CallContext';
+import { permissionUtils } from '../utils/permissionUtils';
 
 import BoundGlobalCallManager from '../features/calls/components/GlobalCallManager';
 
@@ -228,17 +229,11 @@ export const CallProvider = ({ children }) => {
             return;
         }
 
-        // Centralized security guard: Verify friendship status before initiating call
+        // Call Authorization: Use permissionUtils to verify friendship using users/{userId}/friends/{friendId}
         try {
-            const ids = [callerUid, targetUid].sort();
-            const friendshipDocId = `${ids[0]}_${ids[1]}`;
-            const friendshipSnap = await getDoc(doc(db, 'friendships', friendshipDocId));
-
-            const friendshipData = friendshipSnap.data();
-            const isFriend = friendshipSnap.exists() && (friendshipData?.status === 'FRIENDS' || friendshipData?.status === 'accepted');
-
+            const isFriend = await permissionUtils.isFriend(db, callerUid, targetUid);
             if (!isFriend) {
-                showToast('Calls are only allowed with friends.', 'error');
+                showToast('Calls are only available with friends.', 'error');
                 return;
             }
         } catch (error) {

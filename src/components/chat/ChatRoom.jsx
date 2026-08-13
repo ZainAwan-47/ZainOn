@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo, memo } from 'react';
+// React
+import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useMessages } from '../../hooks/useMessages';
@@ -159,9 +160,23 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
         isOtherUserTyping
     });
 
+    const userSentMessagesCount = useMemo(() => {
+        if (isGroup || isFriend) return 0;
+        return allMessages.filter(msg => msg.senderId === user?.uid && !msg.isDeleted).length;
+    }, [allMessages, isGroup, isFriend, user?.uid]);
+
+    const dbNonFriendCount = conversation.nonFriendMessageCounts?.[user?.uid] || 0;
+    const isLimitReached = !isGroup && !isFriend && (dbNonFriendCount >= 5 || userSentMessagesCount >= 5);
+
+    const isLimitReachedRef = useRef(isLimitReached);
+    useEffect(() => {
+        isLimitReachedRef.current = isLimitReached;
+    }, [isLimitReached]);
+
     const handleSendWithReply = useCallback(
         async (text, replyToMsg) => {
             if (!text.trim()) return;
+            if (isLimitReachedRef.current) return;
 
             const clientMessageId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -368,9 +383,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
 
     if (!conversation) return null;
 
-    const myNonFriendCount = conversation.nonFriendMessageCounts?.[user?.uid] || 0;
-    const isLimitReached = !isGroup && !isFriend && myNonFriendCount >= 5;
-
     const activeParticipantsMap = isGroup
         ? conversation.participants
         : { [user.uid]: user, [otherParticipant.uid]: otherParticipant };
@@ -562,18 +574,6 @@ export const ChatRoom = memo(({ conversation, onViewProfile, onCloseChat }) => {
                             );
                         })}
 
-                        {/* DECOUPLED TYPING INDICATOR:
-                            mode="popLayout" instantly removes the indicator from the layout flow on exit.
-                            This guarantees the new incoming message mounts directly in the correct spot 
-                            without any vertical collisions or jitter. */}
-                        {/* THE SMART UX FIX: 
-                            mode="popLayout" ensures that IF a message arrives, the indicator instantly 
-                            becomes 'absolute' and gives up its layout space. It fades out in the background 
-                            while the new message renders instantly. If NO message arrives, it glides left smoothly. */}
-                        {/* THE SMOOTH COLLAPSE FIX: 
-                            popLayout removed. We now strictly animate 'height' to 0 on exit. 
-                            If no message arrives, it smoothly collapses like an accordion. 
-                            If a message arrives, it shrinks simultaneously while the new message fades in. */}
                         <AnimatePresence>
                             {isOtherUserTyping && (
                                 <motion.div
