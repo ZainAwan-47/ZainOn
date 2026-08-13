@@ -34,7 +34,8 @@ export const messageService = {
         recipientId,
         replyTo = null,
         isFriend = true,
-        clientMessageId = null // NEW: 1:1 Optimistic Correlation ID
+        clientMessageId = null,
+        extraData = {} // Added extraData to support call logs
     ) => {
         const trimmedText = text?.trim();
         if (!conversationId || !senderId || !trimmedText) {
@@ -43,8 +44,6 @@ export const messageService = {
 
         try {
             const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-
-            // Use exact client ID if provided, otherwise generate normally
             const newMessageRef = clientMessageId ? doc(messagesRef, clientMessageId) : doc(messagesRef);
             const messageId = newMessageRef.id;
 
@@ -55,7 +54,7 @@ export const messageService = {
                 conversationId,
                 senderId,
                 text: trimmedText,
-                type: 'text',
+                type: extraData.isCallLog ? 'call_log' : 'text',
                 createdAt: serverTimestamp(),
                 deliveryStatus: 'sent',
                 seenBy: [senderId],
@@ -68,18 +67,12 @@ export const messageService = {
                 isEdited: false,
                 deletedFor: {},
                 deletedForEveryone: false,
-                replyTo: replyTo
-                    ? {
-                        id: replyTo.id,
-                        text: replyTo.text,
-                        senderId: replyTo.senderId,
-                        senderName: replyTo.senderName || 'User',
-                        isDeleted: replyTo.isDeleted || false,
-                    }
-                    : null,
+                replyTo: null,
+                ...extraData // Spreads isCallLog, callType, etc.
             };
 
             batch.set(newMessageRef, messageData);
+            // ... rest of sendMessage remains unchanged
 
             const convRef = doc(db, 'conversations', conversationId);
             const convUpdateData = {

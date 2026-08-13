@@ -4,13 +4,13 @@ import React from 'react';
 // Providers
 import AuthProvider from './AuthProvider';
 import ThemeProvider from './ThemeProvider';
-import CallProvider from './CallProvider';
+// EXACT FIX: Removed CallProvider from here because it is now safely wrapping the MainAppLayout directly.
 
 export const AppProviders = ({ children }) => {
     return (
         <AuthProvider>
             <ThemeProvider>
-                <CallProvider>{children}</CallProvider>
+                {children}
             </ThemeProvider>
         </AuthProvider>
     );

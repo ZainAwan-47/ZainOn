@@ -1,15 +1,18 @@
 // React
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo, useContext } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 // Third Party Libraries
-import { motion } from 'framer-motion'; // EXACT FIX: Removed AnimatePresence from inside since parent handles it now
+import { motion } from 'framer-motion';
 
 // Services & Hooks
 import { db } from '../../firebase/firestore';
 import { friendService } from '../../services/friendService';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../context/ToastContext';
+
+// Context
+import { CallContext } from '../../context/CallContext';
 
 // Components
 import Avatar from '../ui/Avatar';
@@ -26,6 +29,9 @@ export const ProfilePreviewModal = memo(({
     const { user } = useAuth();
     const { showToast } = useToast();
     const modalRef = useRef(null);
+
+    const callContext = useContext(CallContext) || {};
+    const { startAudioCall, startVideoCall } = callContext;
 
     // Live Target User State
     const [liveTargetUser, setLiveTargetUser] = useState(targetUser);
@@ -111,6 +117,26 @@ export const ProfilePreviewModal = memo(({
         }
     };
 
+    const handleAudioCall = () => {
+        console.log('[CALL TRACE 1] ProfilePreview Audio Call Clicked. Target:', liveTargetUser);
+        if (startAudioCall) {
+            startAudioCall(liveTargetUser);
+            handleCloseModal();
+        } else {
+            console.error("[CALL TRACE ERROR] startAudioCall is missing from context.");
+        }
+    };
+
+    const handleVideoCall = () => {
+        console.log('[CALL TRACE 1] ProfilePreview Video Call Clicked. Target:', liveTargetUser);
+        if (startVideoCall) {
+            startVideoCall(liveTargetUser);
+            handleCloseModal();
+        } else {
+            console.error("[CALL TRACE ERROR] startVideoCall is missing from context.");
+        }
+    };
+
     if (!liveTargetUser) return null;
 
     const onlineStatusEnabled = liveTargetUser?.privacy?.onlineStatus !== false;
@@ -124,7 +150,6 @@ export const ProfilePreviewModal = memo(({
         lastSeenEffective = null;
     }
 
-    // EXACT FIX 2: Replaced the standard <div> with <motion.div> and removed background colors entirely (0 blur/dimness).
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -209,13 +234,29 @@ export const ProfilePreviewModal = memo(({
                                 </button>
                             )}
 
-                            <button
-                                type="button"
-                                onClick={handleCloseModal}
-                                className="flex-1 py-2 sm:py-2.5 px-3 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--text-primary)] rounded-xl font-semibold text-xs border border-[var(--border-color)] transition-all active:scale-95 cursor-pointer min-w-0 truncate"
-                            >
-                                Close
-                            </button>
+                            <div className="flex space-x-2">
+                                <button
+                                    type="button"
+                                    onClick={handleAudioCall}
+                                    className="p-2 sm:p-2.5 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--color-primary)] rounded-xl border border-[var(--border-color)] transition-all active:scale-95 cursor-pointer shrink-0"
+                                    title="Audio Call"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleVideoCall}
+                                    className="p-2 sm:p-2.5 bg-[var(--bg-surface-hover)] hover:opacity-90 text-[var(--color-primary)] rounded-xl border border-[var(--border-color)] transition-all active:scale-95 cursor-pointer shrink-0"
+                                    title="Video Call"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 6h8a2 2 0 012 2v8a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2z" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div className="w-full pt-1">
