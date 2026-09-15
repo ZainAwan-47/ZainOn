@@ -222,7 +222,8 @@ export const MainAppLayout = () => {
 
     return (
         <CallProvider>
-            <div className="fixed inset-0 h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex select-none transition-colors duration-300">
+            {/* 🚨 FIX: Changed h-screen to h-[100dvh] here below 🚨 */}
+            <div className="fixed inset-0 h-[100dvh] w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-primary)] font-sans flex select-none transition-colors duration-300">
                 {isMobileMenuOpen && (
                     <div
                         onClick={closeMobileMenu}
